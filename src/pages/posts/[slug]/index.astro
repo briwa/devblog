@@ -1,0 +1,126 @@
+---
+import { getCollection, render } from 'astro:content';
+import Base from '../../../layouts/Base.astro';
+import EntryActions from '../../../components/EntryActions.jsx';
+import EntryNav from '../../../components/EntryNav.jsx';
+import { SITE_NAME } from '../../../config.js';
+import { createdOf } from '../../../lib/created.js';
+import { parseTags, tagClass, tagHref } from '../../../lib/tags.js';
+import { published } from '../../../lib/entryData.js';
+import { EDITING_ENABLED } from '../../../lib/permissions.js';
+import EntryDates from '../../../components/EntryDates.jsx';
+
+export async function getStaticPaths() {
+  // Drafts get a page in dev so the author can preview it, but a production build
+  // drops them, so an unpublished entry has no public URL and never gets indexed.
+  const posts = await getCollection('posts');
+  const visible = EDITING_ENABLED ? posts : published(posts);
+  return visible.map((post) => ({ params: { slug: post.id }, props: { post } }));
+}
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+
+// Carries the post's year so home restores that year's context.
+const homeHref = `/?year=${post.id.slice(0, 4)}`;
+
+const created = createdOf(post);
+const updated = post.data.updated;
+
+const tags = parseTags(post.data.tags);
+---
+
+<Base title={post.data.title}>
+  <h1 slot="brand"><a href={homeHref}>{ SITE_NAME }</a></h1>
+  {/* `data-pagefind-body` scopes the search index to entry pages only. */}
+  <div id="entry-view" data-pagefind-body>
+    <div class="entry-bar">
+      <h1 class="entry-h1" data-pagefind-meta="title">{post.data.title}</h1>
+    </div>
+    <div class="entry-meta-block">
+      {tags.length > 0 && (
+        // data-pagefind-ignore: tags sit inside the indexed body, so without this
+        // their text would leak into search excerpts and match queries.
+        <ul class="entry-tags" aria-label="Tags" data-pagefind-ignore>
+          {tags.map((tag) => (
+            <li><a class={tagClass(tag)} href={tagHref(tag)} title={tag}><span class="tag-label">{tag}</span></a></li>
+          ))}
+        </ul>
+      )}
+      <EntryDates created={created.toISOString()} updated={updated ? updated.toISOString() : null} pagefind />
+    </div>
+    <div class="prose"><Content /></div>
+  </div>
+
+  {/* Read-view action bar (owner-only, dev): back-to-top + edit/new links. */}
+  <EntryActions slug={post.id} date={created.toISOString()} client:only="react" />
+
+  {/* Prev/next resolved on the client so the neighbour list isn't baked into the HTML. */}
+  <EntryNav id={post.id} client:only="react" />
+
+  <a class="back" href={homeHref}>← { SITE_NAME }</a>
+
+  {/* Full-screen image viewer: clicking any prose image opens it here. Hidden until opened. */}
+  <div id="lightbox" class="lightbox" aria-hidden="true">
+    <img alt="" />
+  </div>
+  <script>
+    // Delegate clicks so it covers every prose image without re-binding.
+    const box = document.getElementById('lightbox');
+    const full = box.querySelector('img');
+
+    function open(src, alt) {
+      full.src = src;
+      full.alt = alt || '';
+      box.classList.add('open');
+      box.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+    }
+    function close() {
+      box.classList.remove('open');
+      box.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+      // Drop the src so a huge image isn't held in memory between views.
+      full.removeAttribute('src');
+    }
+
+    document.addEventListener('click', (e) => {
+      const img = e.target.closest('.prose img');
+      if (img) { open(img.currentSrc || img.src, img.alt); return; }
+      if (box.classList.contains('open') && e.target.closest('#lightbox')) close();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && box.classList.contains('open')) close();
+    });
+  </script>
+
+  {/* Interactive figure sandboxes: size each iframe to its postMessaged height,
+      and toggle a figure between its live preview and its source. */}
+  <script>
+    window.addEventListener('message', (e) => {
+      const h = e.data && e.data.__sandboxHeight;
+      if (typeof h !== 'number') return;
+      // Match by contentWindow — the frames are null-origin, so there's no origin to trust.
+      for (const f of document.querySelectorAll('.sandbox-frame')) {
+        if (f.contentWindow === e.source) {
+          // Ignore a 0 height: a frame hidden in code mode reports 0, and applying
+          // it would collapse the iframe and lose the running figure on toggle-back.
+          if (h > 0) {
+            f.style.height = h + 'px';
+            // Cap the code view to the figure's rendered height so the toggle doesn't jump.
+            f.closest('.sandbox')?.style.setProperty('--sandbox-h', h + 'px');
+          }
+          break;
+        }
+      }
+    });
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('.sandbox-toggle');
+      if (!btn) return;
+      const fig = btn.closest('.sandbox');
+      const showingCode = fig.getAttribute('data-mode') === 'code';
+      fig.setAttribute('data-mode', showingCode ? 'preview' : 'code');
+      btn.textContent = showingCode ? 'Show code' : 'Show preview';
+    });
+  </script>
+</Base>

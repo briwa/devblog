@@ -1,0 +1,762 @@
+:root {
+  --ink: #1a1a1a;
+  --muted: #6b6b6b;
+  --rule: #e6e6e6;
+  --bg: #fbfbf9;
+  --accent: #b1442e;
+  --code-bg: #f4f4f0;
+  --hover-bg: #f1f1ec;
+  --cell-muted: #c7c7bf;
+  --max: 42rem;
+  color-scheme: light;
+}
+
+/* Dark palette: on explicit pick, or device preference when light isn't forced. */
+:root[data-theme='dark'] {
+  --ink: #e8e7e1;
+  --muted: #9a9a92;
+  --rule: #2b2b30;
+  --bg: #17171a;
+  --accent: #e07a5f;
+  --code-bg: #23232a;
+  --hover-bg: #27272e;
+  --cell-muted: #55555d;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --ink: #e8e7e1;
+    --muted: #9a9a92;
+    --rule: #2b2b30;
+    --bg: #17171a;
+    --accent: #e07a5f;
+    --code-bg: #23232a;
+    --hover-bg: #27272e;
+    --cell-muted: #55555d;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  padding: 0 1.25rem;
+}
+
+.wrap {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 3.5rem 0 5rem;
+}
+
+a { color: var(--accent); text-underline-offset: 2px; }
+a:hover { text-decoration: none; }
+
+.site-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 2.5rem;
+}
+.site-head h1 {
+  font-size: 1.25rem;
+  margin: 0;
+  letter-spacing: 0.01em;
+}
+.site-head a { color: var(--ink); text-decoration: none; }
+.site-head nav a {
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.entry-meta { color: var(--muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.entry-updated { font-style: italic; opacity: 0.8; }
+.entry-updated::before { content: "·"; margin-right: 0.5rem; font-style: normal; opacity: 0.7; }
+
+.hm-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.75rem; }
+.hm-total { color: var(--muted); font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.4rem; }
+.hm-sep { color: var(--rule); }
+.hm-new { color: var(--accent); font-weight: inherit; }
+.hm-new:hover { text-decoration: underline; }
+.hm-years { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; }
+/* Custom dropdown (YearDropdown.jsx), not a native <select>, so it can match the UI. */
+.year-dd { position: relative; }
+.year-dd-trigger {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  background: none; border: 1px solid var(--rule); border-radius: 6px;
+  color: var(--ink); font: inherit; font-size: 0.85rem; padding: 0.15rem 0.5rem;
+  cursor: pointer; font-variant-numeric: tabular-nums;
+}
+.year-dd-trigger:hover { border-color: var(--accent); }
+.year-dd-trigger svg { color: var(--muted); }
+/* max-height + scroll keeps a long archive from running off-screen. */
+.year-dd-menu {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 20;
+  margin: 0; padding: 0.25rem; list-style: none; min-width: 100%;
+  background: var(--bg); border: 1px solid var(--rule); border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  max-height: 15rem; overflow-y: auto;
+}
+.year-dd-menu li { margin: 0; }
+.year-dd-menu button {
+  display: block; width: 100%; text-align: left;
+  background: none; border: none; border-radius: 5px;
+  color: var(--ink); font: inherit; font-size: 0.85rem; padding: 0.25rem 0.6rem;
+  cursor: pointer; font-variant-numeric: tabular-nums;
+}
+.year-dd-menu button:hover { background: var(--rule); }
+.year-dd-menu button.active { color: #fff; background: var(--accent); }
+.hm-drafts { align-self: center; color: var(--muted); font-size: 0.8rem; text-decoration: none; }
+.hm-drafts:hover { color: var(--accent); }
+.hm-cal { overflow-x: auto; color: var(--muted); font-size: 0.8rem; }
+.hm-cal text { fill: var(--muted); }
+.hm-cal .react-activity-calendar__count { color: var(--muted); }
+/* Flip the whole SVG so it reads newest→oldest (Dec left, Jan right); month labels
+   and the weekday gutter are counter-flipped about the same view-box centre so they
+   stay upright as the calendar width changes with the data. */
+.hm-cal svg { transform: scaleX(-1); transform-box: view-box; transform-origin: center; }
+.hm-cal svg .react-activity-calendar__legend-month text {
+  transform: scaleX(-1); transform-box: fill-box; transform-origin: center;
+}
+.hm-cal svg .react-activity-calendar__legend-weekday {
+  transform: scaleX(-1); transform-box: view-box; transform-origin: center;
+}
+
+.cal-tip {
+  position: fixed;
+  z-index: 40;
+  transform: translate(-50%, calc(-100% - 8px));
+  pointer-events: none;
+  max-width: 18rem;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  animation: toast-in 0.12s ease-in-out;
+}
+.cal-tip-date { font-weight: 600; font-variant-numeric: tabular-nums; }
+.cal-tip-list { margin: 0.2rem 0 0; padding-left: 1.1rem; }
+.cal-tip-list li { margin-top: 0.05rem; }
+
+/* Reserve a full-page height so the loading skeleton and real content don't shift
+   the layout when the year JSON lands. Keep in sync with PAGE_SIZE / row padding in Home.jsx. */
+.month-region { --ml-row: 3.05rem; margin-top: 2.5rem; min-height: calc(var(--ml-row) * 12 + 4rem); }
+/* Drafts list has no heatmap above and its own loading text, so it needs neither. */
+.admin-drafts .month-region { margin-top: 0; min-height: 0; }
+.month-list { list-style: none; margin: 0; padding: 0; }
+.month-list li { border-top: 1px solid var(--rule); }
+.month-list li:last-child { border-bottom: 1px solid var(--rule); }
+.month-list a {
+  display: flex; align-items: center; gap: 0.6rem;
+  height: var(--ml-row, 3.05rem); padding: 0.7rem 0; color: var(--ink); text-decoration: none;
+}
+.month-list a:hover .ml-title { color: var(--accent); }
+/* Title shrinks (and ellipsises) before the tags do. */
+.ml-title { flex: 0 1 auto; min-width: 2rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ml-date { margin-left: auto; padding-left: 0.6rem; color: var(--muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0; }
+
+/* The tag group never shrinks (the title does); each chip ellipsises if long. */
+.ml-tags { display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0; }
+.ml-tags .tag { max-width: 7rem; }
+.ml-more { position: relative; color: var(--muted); font-size: 0.72rem; white-space: nowrap; cursor: default; outline: none; }
+.ml-more-pop {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 20;
+  display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.35rem;
+  max-width: 16rem; padding: 0.5rem; border-radius: 8px;
+  background: var(--bg); border: 1px solid var(--rule);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  /* Shown via .open (MoreTags manages it in JS); visibility trails the fade so it's not clickable once hidden. */
+  opacity: 0; visibility: hidden; transform: translateY(-3px);
+  transition: opacity 0.13s ease, transform 0.13s ease, visibility 0s linear 0.13s;
+}
+.ml-more-pop.open {
+  opacity: 1; visibility: visible; transform: translateY(0);
+  transition: opacity 0.13s ease, transform 0.13s ease, visibility 0s;
+}
+/* Transparent bridge over the 6px gap so the pointer never crosses dead space to the popup. */
+.ml-more::after { content: ""; position: absolute; right: 0; top: 100%; width: 3.5rem; height: 8px; }
+.ml-more-pop .tag { max-width: 14rem; }
+/* On phones a hover tooltip is awkward and the row is tight — drop the inline tags. */
+@media (max-width: 34rem) {
+  .ml-tags { display: none; }
+}
+.month-empty { color: var(--muted); margin-top: 2.5rem; }
+
+/* Same row rhythm as .month-list so real entries don't shift the layout on arrival. */
+.month-skeleton .sk-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  height: var(--ml-row, 3.05rem); padding: 0.7rem 0;
+}
+.sk-bar {
+  height: 0.85rem; border-radius: 5px;
+  background: linear-gradient(90deg, var(--rule) 0%, var(--code-bg) 50%, var(--rule) 100%);
+  background-size: 200% 100%;
+  animation: sk-shimmer 1.4s ease-in-out infinite;
+}
+.sk-bar.sk-date { width: 2.5rem; flex-shrink: 0; }
+@keyframes sk-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sk-bar { animation: none; background: var(--rule); }
+}
+.pager { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 1.25rem; }
+.pager button {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: none; cursor: pointer; color: var(--muted); padding: 2px;
+}
+.pager button:hover:not(:disabled) { color: var(--ink); }
+.pager button:disabled { opacity: 0.3; cursor: default; }
+.pager-info { color: var(--muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+
+/* Faint side rails for edit mode; the negative margin pushes them into the gutter
+   so the text column doesn't shift when toggling edit. */
+.entry {
+  padding: 0 1.25rem;
+  margin: 0 -1.25rem;
+  border-left: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.entry-bar { margin-bottom: 0.8rem; }
+/* Two-column grid (not flex) so a long tag set wraps within its own column and never
+   pushes the dates onto the next line; tags column shrinks, dates column is content-sized. */
+.entry-meta-block {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-bottom: 2.5rem;
+}
+.entry-dates {
+  grid-column: 2; /* always the right column, even with no tags */
+  align-self: start; /* stay on the first line when the tags column wraps */
+  min-height: 1.7rem; /* chip-height band so it lines up with the first row of chips */
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+}
+.entry-dates .entry-meta { white-space: nowrap; }
+
+/* The editor's created day is a button; a dotted underline signals it opens the picker. */
+.entry-date-edit {
+  border: none; background: none; padding: 0; margin: 0; cursor: pointer;
+  /* Inherit only the family so the button reads identically to the plain date span
+     (a `font` shorthand would reset font-size back to the larger inherited value). */
+  font-family: inherit; color: var(--muted);
+  text-decoration: underline dotted; text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, var(--muted) 55%, transparent);
+}
+.entry-date-edit:hover { color: var(--accent); text-decoration-color: var(--accent); }
+
+/* Opens toward the right edge (where the date sits) so it doesn't run off-screen. */
+.date-picker { position: relative; }
+.date-popover {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 30;
+  background: var(--bg); border: 1px solid var(--rule); border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  padding: 0.25rem 0.5rem;
+}
+/* Map react-day-picker's custom properties to site tokens so it follows light/dark. */
+.date-popover .rdp-root {
+  --rdp-accent-color: var(--accent);
+  --rdp-accent-background-color: color-mix(in srgb, var(--accent) 16%, transparent);
+  --rdp-today-color: var(--accent);
+  --rdp-outside-opacity: 0.4;
+  --rdp-font-family: inherit;
+  /* Shrink the default ~44px cells so the calendar reads compact; day_button stays
+     smaller than its cell so the selected circle hugs the digit. */
+  --rdp-day-width: 2.1rem;
+  --rdp-day-height: 2.1rem;
+  --rdp-day_button-width: 1.65rem;
+  --rdp-day_button-height: 1.65rem;
+  --rdp-nav_button-width: 1.65rem;
+  --rdp-nav_button-height: 1.65rem;
+  --rdp-weekday-padding: 0.25rem 0;
+  --rdp-selected-border: none;
+  color: var(--ink); font-size: 0.78rem;
+}
+.date-popover .rdp-day_button { color: var(--ink); font-size: small; }
+.date-popover .rdp-selected .rdp-day_button {
+  color: #fff; background: var(--accent); border-color: var(--accent);
+}
+.date-popover .rdp-day_button:hover:not([disabled]) {
+  background: var(--hover-bg);
+}
+.date-popover .rdp-chevron { fill: var(--muted); }
+.date-popover .rdp-weekday { color: var(--muted); }
+.entry-h1,
+.entry-title-input {
+  width: 100%;
+  font-size: 2rem;
+  line-height: 1.2;
+  font-weight: 700;
+  font-family: inherit;
+  color: var(--ink);
+  margin: 0;
+}
+.entry-title-input { border: none; outline: none; background: transparent; padding: 0; }
+
+/* Editor meta row: date + publish toggle stack in the right column, top-aligned so
+   the toggle stays under the date however tall the tag list grows. */
+.entry-tags-edit { align-self: start; }
+.entry-meta-side {
+  grid-column: 2;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end; /* flush right, matching the right-aligned date */
+  gap: 0.6rem;
+}
+
+.draft-toggle {
+  flex-shrink: 0; background: none; border: none; padding: 0; cursor: pointer;
+  font: inherit; line-height: 0; vertical-align: middle;
+}
+/* The thumb is absolutely positioned so it animates its `left` across the pill on
+   toggle (a flex swap would jump); fixed height pins the pill so differing labels don't shift it. */
+.draft-toggle-track {
+  position: relative; display: block; box-sizing: border-box;
+  height: 22px; line-height: 22px; border-radius: 999px;
+  font-size: 0.72rem; font-weight: 600; white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+/* Padding reserves the thumb's lane so the label never sits under it. */
+.draft-toggle.is-published .draft-toggle-track {
+  padding: 0 1.6rem 0 0.7rem; text-align: left;
+  background: var(--accent); color: #fff;
+}
+.draft-toggle.is-draft .draft-toggle-track {
+  padding: 0 0.7rem 0 1.6rem; text-align: right;
+  background: color-mix(in srgb, var(--muted) 25%, transparent); color: var(--muted);
+}
+.draft-toggle-thumb {
+  position: absolute; top: 4px; width: 14px; height: 14px; border-radius: 50%;
+  background: currentColor; transition: left 0.18s ease;
+}
+.draft-toggle.is-published .draft-toggle-thumb { left: calc(100% - 18px); }
+.draft-toggle.is-draft .draft-toggle-thumb { left: 4px; }
+
+/* Every tag-row control shares this exact height so swapping the + button for the
+   input (or chips for none) never shifts the row; centering is by flex/height, not padding. */
+.tag, .tag-add, .tag-input { height: 1.7rem; }
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  max-width: 11rem;
+  padding: 0 0.6em;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--muted) 22%, transparent);
+}
+/* Home-list tags are secondary chrome, so shrink the chips 20% off the base size. */
+.ml-tags .tag,
+.ml-more-pop .tag { font-size: 0.576rem; height: 1.36rem; }
+/* A clickable chip shows the pointer and warms toward ink on hover. */
+a.tag, .ml-tags .tag, .ml-more-pop .tag { cursor: pointer; }
+a.tag:hover, .ml-tags .tag:hover, .ml-more-pop .tag:hover { color: var(--ink); border-color: var(--muted); }
+.tag-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; color: inherit; text-decoration: none; }
+a.tag-label { cursor: pointer; }
+a.tag-label:hover { color: var(--ink); }
+
+/* Wraps freely so a long set doesn't crowd the dates; the meta row owns spacing. */
+.entry-tags {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+/* Flex (not block) so each li's height is exactly its 1.7rem control — a line box
+   would reserve differing baseline space and shift the row ~1px when toggling button/input. */
+.entry-tags > li { display: flex; align-items: center; }
+
+.entry-tags-edit { align-items: center; }
+.tag-x {
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; background: none; padding: 0; margin-right: -0.15em;
+  color: inherit; opacity: 0.7; cursor: pointer; flex-shrink: 0;
+}
+.tag-x:hover { opacity: 1; }
+.tag-add {
+  display: inline-flex; align-items: center; gap: 0.2em;
+  padding: 0 0.6em;
+  border-radius: 999px;
+  border: 1px dashed var(--rule);
+  background: none; color: var(--muted); cursor: pointer;
+  font-size: 0.72rem; font-weight: 600;
+}
+.tag-add:hover { color: var(--ink); border-color: var(--muted); }
+.tag-add-label { letter-spacing: 0.01em; }
+.tag-input {
+  width: 7rem; padding: 0 0.55em;
+  border-radius: 999px; border: 1px solid var(--accent);
+  background: transparent; color: var(--ink);
+  font-family: inherit; font-size: 0.72rem; font-weight: 600;
+  outline: none;
+  padding: 0.5rem 0.75rem;
+}
+.tag-input::placeholder { color: var(--muted); font-weight: 500; }
+
+.tag-filter { display: flex; align-items: center; gap: 0.5rem; margin: 1.5rem 0 -1rem; font-size: 0.8rem; }
+.tag-filter-label { color: var(--muted); }
+.tag-filter-clear {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.4rem; height: 1.4rem; padding: 0;
+  border: none; border-radius: 999px; background: none; color: var(--muted); cursor: pointer;
+}
+.tag-filter-clear:hover { color: var(--ink); background: var(--hover-bg); }
+/* A button styled as an inline text link. */
+.link-btn {
+  border: none; background: none; padding: 0; cursor: pointer;
+  color: var(--accent); font: inherit; text-underline-offset: 2px; text-decoration: underline;
+}
+.link-btn:hover { text-decoration: none; }
+
+.toast {
+  position: fixed;
+  top: 1.25rem;
+  right: 1.25rem;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: min(26rem, calc(100vw - 2.5rem));
+  padding: 0.7rem 0.7rem 0.7rem 0.95rem;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  animation: toast-in 0.25s ease-in-out;
+}
+.toast-ok { border-left-color: #2e7d32; }
+.toast-err { border-left-color: #d64545; }
+.toast-msg { flex: 1; }
+.toast-link { white-space: nowrap; font-size: 0.8rem; }
+.toast-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.toast-x:hover { color: var(--ink); background: var(--hover-bg); }
+@keyframes toast-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+/* Let the toast span the width so it clears the bottom-right docked toolbar. */
+@media (max-width: 56rem) {
+  .toast { left: 1.25rem; right: 1.25rem; max-width: none; }
+}
+
+/* Fixed beside the column, near the top, so it reads as attached to the editor. */
+.editor-fab {
+  position: fixed;
+  top: 10rem;
+  /* Just past the column's right edge; clamp toward the viewport when the gutter is too narrow. */
+  left: min(calc(100% - 3.4rem), calc(50% + var(--max) / 2 + 1.6rem));
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.35rem;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.07);
+}
+.fab-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--muted);
+}
+.fab-btn:hover { color: var(--ink); background: var(--hover-bg); }
+.fab-btn.save { color: var(--accent); }
+.fab-btn.danger:hover { color: #d64545; }
+.fab-btn:disabled { opacity: 0.5; cursor: default; }
+/* Accent-filled like the home header's + so the "new entry" affordance reads the same. */
+.fab-btn.fab-new { color: #fff; background: var(--accent); text-decoration: none; }
+.fab-btn.fab-new:hover { color: #fff; background: var(--accent); filter: brightness(1.08); }
+.fab-divider { align-self: stretch; height: 1px; margin: 0.15rem 0; background: var(--rule); }
+
+/* No room for a side gutter on narrow screens — dock it bottom-right instead. */
+@media (max-width: 56rem) {
+  .editor-fab {
+    top: auto;
+    bottom: 1.25rem;
+    left: auto;
+    right: 1.25rem;
+    transform: none;
+    flex-direction: row;
+  }
+  .fab-divider { align-self: stretch; width: 1px; height: auto; margin: 0 0.15rem; }
+}
+
+.entry-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-top: 3.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--rule);
+}
+.entry-nav-link {
+  display: inline-flex;
+  align-items: flex-start; /* arrow sits beside the title line, not the centre of the two-line block */
+  gap: 0.4rem;
+  min-width: 0;
+  text-decoration: none;
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+.entry-nav-link:hover { color: var(--accent); }
+.nav-arrow { color: var(--muted); }
+.entry-nav-link:hover .nav-arrow { color: var(--accent); }
+/* Title and date stack so a long title isn't crowded; "next" right-aligns toward the → arrow. */
+.nav-text { display: flex; flex-direction: column; min-width: 0; }
+.entry-nav-link.next .nav-text { align-items: flex-end; text-align: right; }
+.nav-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.nav-d { color: var(--muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.back { display: inline-block; margin-top: 2rem; color: var(--muted); text-decoration: none; font-size: 0.85rem; }
+.back:hover { color: var(--accent); }
+
+.site-head nav { display: flex; align-items: center; gap: 0.75rem; }
+.site-head nav a.nav-new {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--accent); color: #fff; border-radius: 7px; padding: 4px 7px;
+}
+.site-head nav a.nav-new:hover { color: #fff; filter: brightness(1.08); }
+
+.prose { line-height: 1.65; }
+.prose > :first-child { margin-top: 0; }
+.prose p { margin: 1rem 0; }
+.prose :is(h2, h3) { margin: 2.25rem 0 0.5rem; line-height: 1.25; }
+.prose h2 { font-size: 1.45rem; }
+.prose h3 { font-size: 1.18rem; }
+.prose ul, .prose ol { padding-left: 1.4rem; margin: 1rem 0; }
+.prose li { margin: 0.25rem 0; }
+/* Cap image footprint so they read as inset figures: max-height keeps tall portrait
+   shots off the full screen; max-width trims landscape ones below the column width. */
+.prose img {
+  display: block;
+  margin: 1.75rem auto;
+  max-width: 68%;
+  max-height: 70vh;
+  height: auto;
+  /* Accent border so an image reads as a distinct block and won't bleed into a same-toned background. */
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  cursor: zoom-in;
+}
+
+/* Full-screen image viewer (script in posts/[slug]/index.astro); toggled via .open. */
+.lightbox {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  /* Ink-tinted scrim so it dims correctly in both themes. */
+  background: color-mix(in srgb, var(--ink) 80%, transparent);
+  padding: 4vmin;
+  cursor: zoom-out;
+}
+.lightbox.open { display: flex; align-items: center; justify-content: center; }
+.lightbox img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 8px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+.prose blockquote {
+  margin: 1.5rem 0;
+  padding-left: 1rem;
+  border-left: 3px solid var(--rule);
+  color: var(--muted);
+  font-style: italic;
+}
+.prose :not(pre) > code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.85em;
+  background: var(--code-bg);
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+}
+.prose pre {
+  font-size: 0.8rem;
+  padding: 1rem;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
+/* Interactive figure sandboxes (```js canvas|svg → remarkSandbox): a live <iframe>
+   preview + source, data-mode picks which shows. Inset ~90% so it reads as a set-apart figure. */
+.sandbox { width: 90%; margin: 1.75rem auto; position: relative; }
+.sandbox-frame {
+  width: 100%;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--bg);
+  display: block;
+}
+/* Fixed height (--sandbox-h, set on the figure) so the code box matches the preview
+   it replaces and toggling never makes the entry jump; overflow scrolls within it. */
+.sandbox-code > pre { margin: 0; height: var(--sandbox-h); overflow-y: auto; }
+.sandbox[data-mode='preview'] .sandbox-code { display: none; }
+.sandbox[data-mode='code'] .sandbox-stage { display: none; }
+/* Box styling is shared with .cm-sandbox-show below; only the overlay position and
+   opaque background (it sits over the figure) are specific here. */
+.sandbox-toggle {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  background: var(--bg);
+  cursor: pointer;
+}
+
+/* A `lib` block (```js lib): shared helper source, rendered as a collapsible
+   <details> of its highlighted source rather than an iframe. Reuses .sandbox for the inset. */
+.sandbox-lib > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.85rem;
+  list-style: none; /* drop the default disclosure marker; we draw our own caret */
+}
+.sandbox-lib > summary::-webkit-details-marker { display: none; }
+.sandbox-lib > summary::before {
+  content: '';
+  width: 0; height: 0;
+  border-left: 6px solid currentColor;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  transition: transform 0.15s;
+}
+.sandbox-lib[open] > summary::before { transform: rotate(90deg); }
+.sandbox-lib > summary:hover { color: var(--ink); }
+.sandbox-lib > summary:hover .sandbox-lib-tag { color: var(--ink); }
+.sandbox-lib > pre { margin: 0.6rem 0 0; }
+.sandbox-lib-tag {
+  font-size: 0.7rem;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+}
+
+/* An `external-lib` block: reuses the .sandbox-lib <details> shell but reveals the injected URL(s) as links. */
+.sandbox-external-urls {
+  margin: 0.6rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.85rem;
+}
+.sandbox-external-urls a { word-break: break-all; }
+/* An invalid URL, shown verbatim so the author sees their typo; muted to read as inert. */
+.sandbox-external-bad { color: var(--muted); word-break: break-all; }
+
+/* Inline sandbox preview inside the CodeMirror source editor (sandboxPreview.js). */
+.cm-sandbox { margin: 0.5rem 0; }
+.cm-sandbox-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.2rem 0 0.4rem;
+}
+/* Tag label and "Show preview" button share box metrics so they line up. Longhands,
+   not the `font` shorthand: `font: …/… inherit` is invalid and drops the whole
+   declaration; font-family:inherit also keeps the button off the UA font. */
+.cm-sandbox-tag,
+.cm-sandbox-show,
+.sandbox-toggle {
+  font-family: inherit;
+  font-size: 0.7rem;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+}
+.cm-sandbox-show {
+  background: none;
+  cursor: pointer;
+}
+.cm-sandbox-show:hover,
+.sandbox-toggle:hover { color: var(--ink); }
+
+.cm-host .cm-editor { background: transparent; }
+.cm-host .cm-editor.cm-focused { outline: none; }
+
+/* Shows the icon for the action you'd take next. */
+.theme-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  padding: 0.3rem;
+  display: inline-flex;
+  align-items: center;
+}
+.theme-toggle:hover { color: var(--ink); }
+.theme-toggle .icon-sun { display: none; }
+:root[data-theme='dark'] .theme-toggle .icon-sun { display: inline; }
+:root[data-theme='dark'] .theme-toggle .icon-moon { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .theme-toggle .icon-sun { display: inline; }
+  :root:not([data-theme='light']) .theme-toggle .icon-moon { display: none; }
+}

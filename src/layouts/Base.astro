@@ -1,0 +1,39 @@
+---
+import Layout from './Layout.astro';
+import Icon from '../components/Icon.astro';
+import Search from '../components/Search.astro';
+import { SITE_NAME } from '../config.js';
+
+const { title } = Astro.props;
+---
+
+<Layout title={title}>
+  <div class="wrap">
+    <header class="site-head">
+      <slot name="brand">
+        <h1><a href="/">{SITE_NAME}</a></h1>
+      </slot>
+      <nav>
+        <Search />
+        <slot name="nav" />
+        <button class="theme-toggle" type="button" aria-label="Toggle dark mode">
+          <Icon name="moon" class="icon-moon" />
+          <Icon name="sun" class="icon-sun" />
+        </button>
+      </nav>
+    </header>
+    <main>
+      <slot />
+    </main>
+  </div>
+  <script is:inline>
+    document.querySelector('.theme-toggle')?.addEventListener('click', () => {
+      const current =
+        document.documentElement.getAttribute('data-theme') ||
+        (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      const next = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('theme', next);
+    });
+  </script>
+</Layout>

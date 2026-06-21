@@ -1,0 +1,30 @@
+---
+import Base from '../../layouts/Base.astro';
+import EntryEditor from '../../components/admin/EntryEditor.jsx';
+import AdminEdit from '../../components/admin/AdminEdit.jsx';
+import AdminDrafts from '../../components/admin/AdminDrafts.jsx';
+import { EDITING_ENABLED } from '../../lib/permissions.js';
+import { loadPosts } from '../../lib/entries.js';
+import { drafts, entrySummary } from '../../lib/entryData.js';
+
+export function getStaticPaths() {
+  if (!EDITING_ENABLED) return [];
+  return [{ params: { action: 'new' } }, { params: { action: 'edit' } }, { params: { action: 'drafts' } }];
+}
+
+const { action } = Astro.params;
+const titles = { new: 'New entry', edit: 'Edit entry', drafts: 'Drafts' };
+
+// Built at build time, newest first; this route only builds under EDITING_ENABLED (dev), so drafts never reach prod.
+const draftList = action === 'drafts'
+  ? drafts(await loadPosts()).map(entrySummary).sort((a, b) => b.iso.localeCompare(a.iso))
+  : [];
+---
+
+<Base title={titles[action] || 'Admin'}>
+  {action === 'new'
+    ? <EntryEditor isNew={true} client:only="react" />
+    : action === 'drafts'
+    ? <AdminDrafts drafts={draftList} client:only="react" />
+    : <AdminEdit client:only="react" />}
+</Base>

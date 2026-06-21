@@ -1,0 +1,151 @@
+<form class="hdr-search" role="search" autocomplete="off">
+  <input type="search" class="hdr-search__input" placeholder="Search" aria-label="Search entries" />
+  <div class="hdr-search__panel" role="listbox" hidden></div>
+</form>
+
+<script is:inline>
+  (() => {
+    const form = document.querySelector('.hdr-search');
+    if (!form) return;
+    const input = form.querySelector('.hdr-search__input');
+    const panel = form.querySelector('.hdr-search__panel');
+    let pf = null, unbuilt = false, timer = null, items = [], sel = -1;
+
+    const esc = (s) =>
+      String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+    const ensure = async () => {
+      if (pf || unbuilt) return pf;
+      try {
+        pf = await import('/pagefind/pagefind.js');
+        await pf.init();
+      } catch {
+        unbuilt = true;
+      }
+      return pf;
+    };
+    const close = () => { panel.hidden = true; panel.innerHTML = ''; items = []; sel = -1; };
+
+    const showUnbuilt = () => {
+      panel.innerHTML =
+        '<div class="hdr-search__empty">Search index not built. Run ' +
+        '<code>npm run pagefind</code> to enable search.</div>';
+      items = []; sel = -1; panel.hidden = false;
+    };
+
+    const render = (results, q) => {
+      if (!results.length) {
+        panel.innerHTML = '<div class="hdr-search__empty">No entries for “' + esc(q) + '”.</div>';
+      } else {
+        panel.innerHTML = results.map((d) =>
+          '<a class="hdr-search__item" role="option" href="' + d.url + '">' +
+            '<div class="hdr-search__head">' +
+              '<strong class="hdr-search__title">' + esc(d.meta.title || 'Untitled') + '</strong>' +
+              (d.meta.date
+                ? '<span class="hdr-search__dot">·</span><span class="hdr-search__date">' + esc(d.meta.date) + '</span>'
+                : '') +
+            '</div>' +
+            '<div class="hdr-search__excerpt">' + d.excerpt + '</div>' +
+          '</a>'
+        ).join('');
+      }
+      items = [...panel.querySelectorAll('.hdr-search__item')];
+      sel = -1;
+      panel.hidden = false;
+    };
+
+    const run = async (q) => {
+      const lib = await ensure();
+      if (!lib) return showUnbuilt();
+      const r = await lib.search(q);
+      if (input.value.trim() !== q) return; // a newer keystroke won
+      const data = await Promise.all(r.results.slice(0, 6).map((x) => x.data()));
+      if (input.value.trim() !== q) return;
+      render(data, q);
+    };
+
+    input.addEventListener('input', () => {
+      const q = input.value.trim();
+      clearTimeout(timer);
+      if (!q) return close();
+      timer = setTimeout(() => run(q), 160);
+    });
+
+    form.addEventListener('submit', (e) => e.preventDefault());
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') return (close(), input.blur());
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const target = items[sel] || items[0];
+        if (target) window.location.href = target.getAttribute('href');
+        return;
+      }
+      if (!items.length) return;
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        sel = (sel + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+        items.forEach((el, i) => el.setAttribute('aria-selected', i === sel));
+        items[sel].scrollIntoView({ block: 'nearest' });
+      }
+    });
+
+    input.addEventListener('focus', () => ensure());
+    document.addEventListener('click', (e) => { if (!form.contains(e.target)) close(); });
+  })();
+</script>
+
+<style is:global>
+  .hdr-search { position: relative; display: flex; align-items: center; }
+  .hdr-search__input {
+    width: clamp(6.5rem, 26vw, 11rem);
+    font: inherit; font-size: 0.85rem; color: var(--ink);
+    background: var(--code-bg); border: 1px solid var(--rule);
+    border-radius: 7px; padding: 4px 9px;
+  }
+  .hdr-search__input::placeholder { color: var(--muted); }
+  .hdr-search__input:focus { outline: none; border-color: var(--accent); }
+  .hdr-search__panel {
+    position: absolute; top: calc(100% + 8px); right: 0;
+    width: min(92vw, 24rem); max-height: min(70vh, 28rem); overflow-y: auto;
+    background: var(--bg); border: 1px solid var(--rule); border-radius: 10px;
+    box-shadow: 0 10px 34px rgba(0, 0, 0, 0.14); padding: 6px; z-index: 50;
+  }
+  .hdr-search .hdr-search__item {
+    display: block; padding: 8px 10px; border-radius: 7px; text-decoration: none;
+    text-transform: none; letter-spacing: normal;
+  }
+  .hdr-search__item:hover, .hdr-search__item[aria-selected='true'] { background: var(--hover-bg); }
+  .hdr-search__head { display: flex; align-items: baseline; gap: 6px; }
+  .hdr-search__title { color: var(--ink); font-size: 0.9rem; font-weight: 600; }
+  .hdr-search__dot { color: var(--muted); }
+  .hdr-search__date {
+    color: var(--muted); font-size: 0.78rem;
+    font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  .hdr-search__excerpt {
+    color: var(--muted); font-size: 0.8rem; line-height: 1.45; margin-top: 2px;
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3;
+    overflow: hidden;
+  }
+  .hdr-search__excerpt mark {
+    background: color-mix(in srgb, var(--accent) 25%, transparent);
+    color: inherit; border-radius: 2px; padding: 0 1px;
+  }
+  .hdr-search__empty { color: var(--muted); font-size: 0.82rem; padding: 10px; line-height: 1.5; }
+  .hdr-search__empty code {
+    background: var(--code-bg); border-radius: 4px; padding: 1px 5px;
+    font-size: 0.92em; color: var(--ink);
+  }
+
+  @media (max-width: 600px) {
+    .site-head { position: relative; }   /* containing block for the panel */
+    .hdr-search { position: static; }    /* stop anchoring the panel to the box */
+    .hdr-search__panel {
+      left: 0; right: 0; width: auto; max-width: none;
+      max-height: min(60vh, 22rem); padding: 4px;
+    }
+    .hdr-search .hdr-search__item { padding: 6px 8px; }
+    .hdr-search__excerpt { -webkit-line-clamp: 2; margin-top: 1px; }
+  }
+</style>

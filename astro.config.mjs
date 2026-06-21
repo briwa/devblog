@@ -1,0 +1,224 @@
+import { defineConfig } from 'astro/config';
+import react from '@astrojs/react';
+import { mkdir, readdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { unified } from '@astrojs/markdown-remark';
+import { remarkStripHtml } from './src/lib/remarkStripHtml.js';
+import { remarkSandbox } from './src/lib/remarkSandbox.js';
+// Keeps the dev-only /admin editing surface out of production builds.
+import { adminBuild } from './src/lib/adminBuild.js';
+import {
+  entryBody,
+  fallbackTitle,
+  frontmatterDraft,
+  frontmatterTags,
+  frontmatterTitle,
+  frontmatterUpdated,
+  isValidPostPath,
+  parseTags,
+  slugify,
+  uploadFilename,
+  withDate,
+} from './src/lib/publish.js';
+// Shared with the real /data endpoints; kept astro:content-free so this Vite config can import it.
+import { entrySummary, published, yearsOf } from './src/lib/entryData.js';
+
+// Dev-only: emulate the editor's /admin/api/* write routes against local disk (no server in prod).
+function devPublish() {
+  const sendJson = (res, status, obj) => {
+    res.statusCode = status;
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify(obj));
+  };
+  const readBody = async (req) => {
+    const chunks = [];
+    for await (const c of req) chunks.push(c);
+    return JSON.parse(Buffer.concat(chunks).toString() || '{}');
+  };
+
+  return {
+    name: 'dev-publish',
+    apply: 'serve',
+    configureServer(server) {
+      const root = () => server.config.root;
+
+      // astro dev never serves dist/, so mirror the Pagefind index from disk (else search 404s).
+      server.middlewares.use('/pagefind', async (req, res, next) => {
+        const base = join(root(), 'dist', 'pagefind');
+        const file = join(base, decodeURIComponent((req.url || '').split('?')[0]));
+        if (!file.startsWith(base)) return next(); // path traversal guard
+        try {
+          const data = await readFile(file);
+          const ext = file.slice(file.lastIndexOf('.'));
+          const types = { '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.wasm': 'application/wasm' };
+          res.setHeader('content-type', types[ext] || 'application/octet-stream');
+          res.end(data);
+        } catch {
+          next(); // not built yet → 404
+        }
+      });
+
+      // Serve /data fresh from disk in dev — astro dev caches getStaticPaths, so a new year's first entry would 404 until restart.
+      server.middlewares.use('/data', async (req, res, next) => {
+        if (req.method !== 'GET') return next();
+        const path = (req.url || '').split('?')[0];
+        const wantsYears = path === '/years.json';
+        const yearMatch = /^\/(\d{4})\.json$/.exec(path);
+        if (!wantsYears && !yearMatch) return next(); // not a data route we mirror
+
+        const dir = join(root(), 'src', 'content', 'posts');
+        // Missing dir / empty repo → empty result, not an error.
+        const files = (await readdir(dir).catch(() => []))
+          .filter((f) => f.endsWith('.md'))
+          .sort();
+        // The minimal post-like shape entrySummary/yearsOf expect (no astro:content here).
+        const posts = await Promise.all(
+          files.map(async (f) => {
+            const id = f.slice(0, -3); // strip .md → the same id Astro's glob uses
+            const text = await readFile(join(dir, f), 'utf8').catch(() => '');
+            return { id, data: { title: frontmatterTitle(text) || id, tags: frontmatterTags(text), draft: frontmatterDraft(text) } };
+          }),
+        );
+
+        // Drafts are unlisted — drop them, as the prerendered /data endpoints do.
+        const live = published(posts);
+        if (wantsYears) return sendJson(res, 200, yearsOf(live));
+        const year = yearMatch[1];
+        return sendJson(res, 200, live.filter((p) => p.id.slice(0, 4) === year).map(entrySummary));
+      });
+
+      // Read one entry's source for the single /admin/edit page (loaded at runtime, not prerendered per post).
+      server.middlewares.use('/admin/api/entry', async (req, res, next) => {
+        if (req.method !== 'GET') return next();
+        try {
+          const id = new URL(req.url, 'http://localhost').searchParams.get('post') || '';
+          const path = `src/content/posts/${id}.md`;
+          if (!isValidPostPath(path)) throw new Error('Invalid entry');
+          const text = await readFile(join(root(), path), 'utf8').catch(() => null);
+          if (text == null) return sendJson(res, 404, { error: 'Entry not found' });
+          // The same fields the read view derives, so the editor restores exactly what it'll save.
+          sendJson(res, 200, {
+            markdown: entryBody(text),
+            title: frontmatterTitle(text),
+            tags: frontmatterTags(text),
+            updated: frontmatterUpdated(text) || null,
+            draft: frontmatterDraft(text),
+            created: `${id.slice(0, 10)}T00:00:00.000Z`,
+          });
+        } catch (e) {
+          sendJson(res, 500, { error: e.message });
+        }
+      });
+
+      server.middlewares.use('/admin/api/publish', async (req, res, next) => {
+        if (req.method !== 'POST') return next();
+        try {
+          const body = await readBody(req);
+          const markdown = (body.markdown || '').trim();
+          // Title optional: blank → the local first-words heuristic (fallbackTitle).
+          let title = (body.title || '').trim();
+          if (!title) {
+            if (!markdown) throw new Error('Title or content is required');
+            title = fallbackTitle(markdown);
+          }
+
+          const editing = Boolean(body.path);
+
+          // Astro's dev store misses the first file added to an empty collection, so detect empty→first to restart below.
+          let wasEmpty = false;
+          if (!editing) {
+            const postsDir = join(root(), 'src', 'content', 'posts');
+            const existing = (await readdir(postsDir).catch(() => [])).filter((f) => f.endsWith('.md'));
+            wasEmpty = existing.length === 0;
+          }
+
+          const iso = body.date || new Date().toISOString();
+          // A date change is a rename: the creation day lives in the filename (write new, unlink old).
+          const srcPath = editing ? body.path : null;
+          // Confine writes to the posts dir — an unvalidated body.path is an arbitrary file write (dev has no auth).
+          if (editing && !isValidPostPath(srcPath)) throw new Error('Invalid path');
+          let path;
+          let renameFrom = null;
+          if (!editing) {
+            path = `src/content/posts/${iso.slice(0, 10)}-${slugify(title)}.md`;
+          } else {
+            // A new day swaps the filename's date prefix; withDate returns srcPath unchanged for a same-day save.
+            path = body.date ? withDate(srcPath, body.date.slice(0, 10)) : srcPath;
+            if (!isValidPostPath(path)) throw new Error('Invalid path');
+            if (path !== srcPath) {
+              // Don't clobber another entry that already sits on the target day.
+              const clash = await readFile(join(root(), path), 'utf8').catch(() => null);
+              if (clash !== null) throw new Error('An entry already exists on that date');
+              renameFrom = srcPath;
+            }
+          }
+
+          // Honour the editor's explicit tags; if absent (older client), preserve existing so an edit never drops them.
+          const explicitTags =
+            typeof body.tags === 'string' || Array.isArray(body.tags) ? parseTags(body.tags) : null;
+          const existing = editing ? await readFile(join(root(), srcPath), 'utf8').catch(() => '') : '';
+          const tags = explicitTags !== null ? explicitTags : (editing ? parseTags(frontmatterTags(existing)) : []);
+          const tagsLine = tags.length ? `tags: ${JSON.stringify(tags.join(', '))}\n` : '';
+
+          // Honour explicit draft; only write the line when true, so publishing naturally drops it.
+          const draft =
+            typeof body.draft === 'boolean' ? body.draft : (editing ? frontmatterDraft(existing) : false);
+          const draftLine = draft ? 'draft: true\n' : '';
+
+          // Editing stamps a fresh `updated` (client sends local wall-clock worn with a Z); new entries have none.
+          const updatedLine = editing ? `updated: ${body.updated || new Date().toISOString()}\n` : '';
+          const file = `---\ntitle: ${JSON.stringify(title)}\n${tagsLine}${draftLine}${updatedLine}---\n\n${markdown}\n`;
+          await writeFile(join(root(), path), file, 'utf8');
+          // Complete the rename: drop the old file, after the successful write, never before.
+          if (renameFrom) await unlink(join(root(), renameFrom));
+          sendJson(res, 200, { ok: true, path, title, edited: editing });
+
+          // First-ever entry: restart so Astro re-syncs the collection — after responding, so the editor still gets its toast.
+          if (wasEmpty) {
+            console.log('[dev-publish] first entry created — restarting dev server to sync the content collection');
+            server.restart().catch((err) => console.error('[dev-publish] restart failed:', err));
+          }
+        } catch (e) {
+          sendJson(res, 500, { error: e.message });
+        }
+      });
+
+      server.middlewares.use('/admin/api/delete', async (req, res, next) => {
+        if (req.method !== 'POST') return next();
+        try {
+          const body = await readBody(req);
+          const path = body.path || '';
+          if (!isValidPostPath(path)) throw new Error('Invalid path');
+          await unlink(join(root(), path));
+          sendJson(res, 200, { ok: true });
+        } catch (e) {
+          sendJson(res, 500, { error: e.message });
+        }
+      });
+
+      server.middlewares.use('/admin/api/upload', async (req, res, next) => {
+        if (req.method !== 'POST') return next();
+        try {
+          const body = await readBody(req);
+          if (!body.data) throw new Error('No file data');
+          const filename = uploadFilename(body.name, body.type);
+          if (!filename) throw new Error('Unsupported image type (png, jpg, gif, webp, avif)');
+          const dir = join(root(), 'public', 'uploads');
+          await mkdir(dir, { recursive: true });
+          await writeFile(join(dir, filename), Buffer.from(body.data, 'base64'));
+          sendJson(res, 200, { url: `/uploads/${filename}` });
+        } catch (e) {
+          sendJson(res, 500, { error: e.message });
+        }
+      });
+    },
+  };
+}
+
+// React is here only for the CodeMirror editor island; the site is otherwise static SSG.
+export default defineConfig({
+  integrations: [react(), adminBuild()],
+  // ORDER MATTERS: strip HTML first, else remarkSandbox's raw-HTML figures get stripped too.
+  markdown: { processor: unified({ remarkPlugins: [remarkStripHtml, remarkSandbox] }) },
+  vite: { plugins: [devPublish()] },
+});
