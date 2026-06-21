@@ -1,0 +1,55 @@
+---
+import Layout from './Layout.astro';
+import Icon from '../components/Icon.astro';
+import Search from '../components/Search.astro';
+import { SITE_NAME } from '../config.js';
+import { CAN_CREATE } from '../lib/capabilities.js';
+
+// The header is composed via slots (Astro's children). Pages can override the
+// `brand` (left) and `nav` (right) areas; both fall back to the normal blog
+// chrome. The theme toggle is always present.
+const { title, hideNew = false } = Astro.props;
+// The header "new entry" button shows only when creating is permitted (CAN_CREATE
+// — dev-only here; see src/lib/capabilities.js). It's also hidden on the new-entry
+// page itself, and on any page that opts out via `hideNew` — the entry page does,
+// since it floats its own + in the editor toolbar (so you can start a fresh entry
+// even when one already exists for that day).
+const onNewPage = Astro.url.pathname.replace(/\/+$/, '') === '/posts/new';
+---
+
+<Layout title={title}>
+  <div class="wrap">
+    <header class="site-head">
+      <slot name="brand">
+        <h1><a href="/">{SITE_NAME}</a></h1>
+      </slot>
+      <nav>
+        <Search />
+        <slot name="nav">
+          {CAN_CREATE && !onNewPage && !hideNew && (
+            <a href="/posts/new/" class="nav-new" aria-label="New entry" title="New entry">
+              <Icon name="plus" />
+            </a>
+          )}
+        </slot>
+        <button class="theme-toggle" type="button" aria-label="Toggle dark mode">
+          <Icon name="moon" class="icon-moon" />
+          <Icon name="sun" class="icon-sun" />
+        </button>
+      </nav>
+    </header>
+    <main>
+      <slot />
+    </main>
+  </div>
+  <script is:inline>
+    document.querySelector('.theme-toggle')?.addEventListener('click', () => {
+      const current =
+        document.documentElement.getAttribute('data-theme') ||
+        (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      const next = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('theme', next);
+    });
+  </script>
+</Layout>

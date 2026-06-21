@@ -1,0 +1,12 @@
+---
+import Base from '../layouts/Base.astro';
+import Home from '../components/Home.jsx';
+
+// Home fetches the set of years from /data/years.json at runtime (rather than
+// baking it into the page), and each year's entries on demand from
+// /data/<year>.json, so the static HTML doesn't grow with the archive.
+---
+
+<Base>
+  <Home client:only="react" />
+</Base>

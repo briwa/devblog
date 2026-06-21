@@ -1,0 +1,684 @@
+:root {
+  --ink: #1a1a1a;
+  --muted: #6b6b6b;
+  --rule: #e6e6e6;
+  --bg: #fbfbf9;
+  --accent: #b1442e;
+  --code-bg: #f4f4f0;
+  --hover-bg: #f1f1ec;
+  --cell-muted: #c7c7bf;
+  --max: 42rem;
+  color-scheme: light;
+}
+
+/* Dark palette: applied when the user explicitly picks dark, OR when their
+   device prefers dark and they haven't forced light. */
+:root[data-theme='dark'] {
+  --ink: #e8e7e1;
+  --muted: #9a9a92;
+  --rule: #2b2b30;
+  --bg: #17171a;
+  --accent: #e07a5f;
+  --code-bg: #23232a;
+  --hover-bg: #27272e;
+  --cell-muted: #55555d;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --ink: #e8e7e1;
+    --muted: #9a9a92;
+    --rule: #2b2b30;
+    --bg: #17171a;
+    --accent: #e07a5f;
+    --code-bg: #23232a;
+    --hover-bg: #27272e;
+    --cell-muted: #55555d;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  padding: 0 1.25rem;
+}
+
+.wrap {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 3.5rem 0 5rem;
+}
+
+a { color: var(--accent); text-underline-offset: 2px; }
+a:hover { text-decoration: none; }
+
+.site-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 2.5rem;
+}
+.site-head h1 {
+  font-size: 1.25rem;
+  margin: 0;
+  letter-spacing: 0.01em;
+}
+.site-head a { color: var(--ink); text-decoration: none; }
+.site-head nav a {
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.entry-meta { color: var(--muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+/* "Updated …" trails the original date on the same line, set off by a thin dot. */
+.entry-updated { font-style: italic; opacity: 0.8; }
+.entry-updated::before { content: "·"; margin-right: 0.5rem; font-style: normal; opacity: 0.7; }
+
+/* Home: GitHub-style contribution heatmap + that year's entry list */
+.hm-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.75rem; }
+.hm-total { color: var(--muted); font-size: 0.85rem; }
+.hm-years { display: flex; gap: 0.4rem; }
+.hm-years button {
+  background: none; border: 1px solid var(--rule); border-radius: 6px;
+  color: var(--muted); font-size: 0.8rem; padding: 0.15rem 0.6rem; cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.hm-years button:hover { color: var(--ink); }
+.hm-years button.active { color: #fff; background: var(--accent); border-color: var(--accent); }
+.hm-cal { overflow-x: auto; color: var(--muted); font-size: 0.8rem; }
+.hm-cal text { fill: var(--muted); } /* month / count labels */
+.hm-cal .react-activity-calendar__count { color: var(--muted); }
+/* Mirror the heatmap so it reads newest→oldest (Dec on the left, Jan on the
+   right), matching the descending entry list and the reversed prev/next nav.
+   react-activity-calendar has no reverse option, so we flip the whole SVG about
+   its centre. That alone would mirror the text and shove the weekday gutter off
+   to the right, so two corrections follow:
+     • month labels ride the flip but get un-mirrored about their own centre, so
+       they stay readable and aligned over their (now reversed) columns;
+     • the weekday-label group is counter-flipped about the SAME axis (view-box
+       centre), which exactly cancels the SVG flip for it — keeping M/W/F upright
+       and in the natural left gutter rather than cramped against the right edge.
+   Using transform-box: view-box ties both flips to the viewBox centre, so they
+   track each other as the calendar's width changes with the data. */
+.hm-cal svg { transform: scaleX(-1); transform-box: view-box; transform-origin: center; }
+.hm-cal svg .react-activity-calendar__legend-month text {
+  transform: scaleX(-1); transform-box: fill-box; transform-origin: center;
+}
+.hm-cal svg .react-activity-calendar__legend-weekday {
+  transform: scaleX(-1); transform-box: view-box; transform-origin: center;
+}
+
+/* Custom calendar tooltip — positioned above the hovered cell, fades in. */
+.cal-tip {
+  position: fixed;
+  z-index: 40;
+  transform: translate(-50%, calc(-100% - 8px));
+  pointer-events: none;
+  max-width: 18rem;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  animation: toast-in 0.12s ease-in-out;
+}
+.cal-tip-date { font-weight: 600; font-variant-numeric: tabular-nums; }
+.cal-tip-list { margin: 0.2rem 0 0; padding-left: 1.1rem; }
+.cal-tip-list li { margin-top: 0.05rem; }
+
+/* Year entry list: Title ............ date */
+/* Reserve a stable area for the list + pager so the loading skeleton and the
+   real content (any row count, with or without a pager) occupy the same height
+   — nothing below shifts when the year JSON lands. Sized to a full page:
+   PAGE_SIZE rows (~3.05rem each: 1.4rem padding + 1.65rem line) + the pager +
+   a small buffer. Keep in sync with PAGE_SIZE / row padding in Home.jsx. */
+.month-region { --ml-row: 3.05rem; margin-top: 2.5rem; min-height: calc(var(--ml-row) * 12 + 4rem); }
+.month-list { list-style: none; margin: 0; padding: 0; }
+.month-list li { border-top: 1px solid var(--rule); }
+.month-list li:last-child { border-bottom: 1px solid var(--rule); }
+.month-list a {
+  display: flex; align-items: center; gap: 0.6rem;
+  height: var(--ml-row, 3.05rem); padding: 0.7rem 0; color: var(--ink); text-decoration: none;
+}
+.month-list a:hover .ml-title { color: var(--accent); }
+/* Title sits to the left and only ellipsises when it has to (shrinks before the
+   tags do); tags follow right beside it (the flex gap is the spacing). */
+.ml-title { flex: 0 1 auto; min-width: 2rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* margin-left:auto floats the date to the far right, leaving the title+tags as a
+   group on the left. */
+.ml-date { margin-left: auto; padding-left: 0.6rem; color: var(--muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0; }
+
+/* Tags to the right of a list title: up to two chips, then a "(n more…)" label.
+   The whole group never shrinks (the title does); each chip is tighter than the
+   entry-page chips and ellipsises if long. */
+.ml-tags { display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0; }
+.ml-tags .tag { max-width: 7rem; }
+/* Hide the rest behind a hoverable/focusable label that pops them in a tooltip. */
+.ml-more { position: relative; color: var(--muted); font-size: 0.72rem; white-space: nowrap; cursor: default; outline: none; }
+.ml-more-pop {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 20;
+  display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.35rem;
+  max-width: 16rem; padding: 0.5rem; border-radius: 8px;
+  background: var(--bg); border: 1px solid var(--rule);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  /* Shown/hidden by the .open class (MoreTags manages it in JS — see Home.jsx).
+     Fades out over 0.13s; visibility trails the fade so it's not clickable once
+     hidden. The generous "stay open" delay lives in the JS hide timer. */
+  opacity: 0; visibility: hidden; transform: translateY(-3px);
+  transition: opacity 0.13s ease, transform 0.13s ease, visibility 0s linear 0.13s;
+}
+.ml-more-pop.open {
+  opacity: 1; visibility: visible; transform: translateY(0);
+  transition: opacity 0.13s ease, transform 0.13s ease, visibility 0s;
+}
+/* Transparent bridge over the 6px gap so the pointer never crosses "dead" space
+   between the label and the popup. */
+.ml-more::after { content: ""; position: absolute; right: 0; top: 100%; width: 3.5rem; height: 8px; }
+.ml-more-pop .tag { max-width: 14rem; }
+/* On phones a hover tooltip is awkward and the row is tight — keep titles +
+   dates readable by dropping the inline tags (the entry page still shows them). */
+@media (max-width: 34rem) {
+  .ml-tags { display: none; }
+}
+.month-empty { color: var(--muted); margin-top: 2.5rem; }
+
+/* Loading skeleton for the entry list — same row rhythm as .month-list so the
+   real entries don't shift the layout when they arrive. */
+.month-skeleton .sk-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  height: var(--ml-row, 3.05rem); padding: 0.7rem 0;
+}
+.sk-bar {
+  height: 0.85rem; border-radius: 5px;
+  background: linear-gradient(90deg, var(--rule) 0%, var(--code-bg) 50%, var(--rule) 100%);
+  background-size: 200% 100%;
+  animation: sk-shimmer 1.4s ease-in-out infinite;
+}
+.sk-bar.sk-date { width: 2.5rem; flex-shrink: 0; }
+@keyframes sk-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+/* Respect reduced-motion: hold a steady tint instead of shimmering. */
+@media (prefers-reduced-motion: reduce) {
+  .sk-bar { animation: none; background: var(--rule); }
+}
+.pager { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 1.25rem; }
+.pager button {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: none; cursor: pointer; color: var(--muted); padding: 2px;
+}
+.pager button:hover:not(:disabled) { color: var(--ink); }
+.pager button:disabled { opacity: 0.3; cursor: default; }
+.pager-info { color: var(--muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+
+/* Editing surface — faint side rails denote "edit mode". Padding + matching
+   negative margin push the rails out into the gutter so the text column stays
+   put (no layout shift toggling edit), without overflowing narrow screens. */
+.entry {
+  padding: 0 1.25rem;
+  margin: 0 -1.25rem;
+  border-left: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+/* Single entry — the title leads (first thing read), then a non-editable meta
+   line (dates on one line, flush right) sits just below it. The title stays
+   full-width and uninterrupted. Same layout viewing or editing. */
+.entry-bar { margin-bottom: 0.6rem; }
+/* The meta row is two columns: tags (left) | dates (right). A grid, not flex,
+   so a long tag set wraps *within its own column* and never pushes the dates
+   onto the next line — the dates keep their own column on the same row. The
+   tags column is minmax(0, 1fr) so it can shrink and wrap its chips rather than
+   widen past the available space; the dates column is content-sized. Same
+   layout viewing or editing. */
+.entry-meta-block {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-bottom: 2.5rem;
+}
+.entry-dates {
+  grid-column: 2; /* always the right column, even with no tags (empty 1fr left) */
+  align-self: start; /* stay on the first line when the tags column wraps */
+  min-height: 1.7rem; /* …centered within a chip-height band so it lines up with the first row of chips */
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+}
+/* Keep each date string on its own line; the column is sized to fit them. */
+.entry-dates .entry-meta { white-space: nowrap; }
+.entry-h1,
+.entry-title-input {
+  width: 100%;
+  font-size: 2rem;
+  line-height: 1.2;
+  font-weight: 700;
+  font-family: inherit;
+  color: var(--ink);
+  margin: 0;
+}
+.entry-title-input { border: none; outline: none; background: transparent; padding: 0; }
+
+/* --- Tags ---------------------------------------------------------------- */
+/* Tags are intentionally uncolored — a single neutral/muted chip, the same
+   wherever it appears. Clicking a chip links to the tag-filtered home (the
+   label is a link on the entry page / editor; on the home it filters in place).
+   Shared chip metrics — every tag-row control (chip, + button, input) is this
+   exact height so swapping the + button for the input (or chips for none) never
+   shifts the row. Vertical centering is by flex/height, not padding. */
+.tag, .tag-add, .tag-input { height: 1.7rem; }
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  max-width: 11rem;
+  padding: 0 0.6em;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--muted) 22%, transparent);
+}
+/* A chip that does something on click (every chip except a plain display one)
+   shows the pointer and warms toward the ink color on hover. */
+a.tag, .ml-tags .tag, .ml-more-pop .tag { cursor: pointer; }
+a.tag:hover, .ml-tags .tag:hover, .ml-more-pop .tag:hover { color: var(--ink); border-color: var(--muted); }
+.tag-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; color: inherit; text-decoration: none; }
+a.tag-label { cursor: pointer; }
+a.tag-label:hover { color: var(--ink); }
+
+/* The tags group within the meta row — wraps freely so a long set doesn't crowd
+   the dates (or the header on mobile). No own margins; the meta row owns spacing. */
+.entry-tags {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+/* Each item is its own flex box, never a block-with-line-box. A plain <li>
+   wrapping the inline + button vs the inline <input> would reserve slightly
+   different baseline space (the two align to the text baseline differently),
+   and align-items:center turned that ~1px line-box delta into a 1px row shift
+   when toggling the button for the input. Flex wrappers have no line box, so
+   each li's height is exactly its 1.7rem control. */
+.entry-tags > li { display: flex; align-items: center; }
+
+/* Editor variant — chips gain a remove (×); a + button adds, behind an inline
+   input while typing. */
+.entry-tags-edit { align-items: center; }
+.tag-x {
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; background: none; padding: 0; margin-right: -0.15em;
+  color: inherit; opacity: 0.7; cursor: pointer; flex-shrink: 0;
+}
+.tag-x:hover { opacity: 1; }
+.tag-add {
+  display: inline-flex; align-items: center; gap: 0.2em;
+  padding: 0 0.6em;
+  border-radius: 999px;
+  border: 1px dashed var(--rule);
+  background: none; color: var(--muted); cursor: pointer;
+  font-size: 0.72rem; font-weight: 600;
+}
+.tag-add:hover { color: var(--ink); border-color: var(--muted); }
+.tag-add-label { letter-spacing: 0.01em; }
+.tag-input {
+  width: 7rem; padding: 0 0.55em;
+  border-radius: 999px; border: 1px solid var(--accent);
+  background: transparent; color: var(--ink);
+  font-family: inherit; font-size: 0.72rem; font-weight: 600;
+  outline: none;
+  padding: 0.5rem 0.75rem;
+}
+.tag-input::placeholder { color: var(--muted); font-weight: 500; }
+
+/* Home active-tag filter pill (shown above the list when ?tag is set). */
+.tag-filter { display: flex; align-items: center; gap: 0.5rem; margin: 1.5rem 0 -1rem; font-size: 0.8rem; }
+.tag-filter-label { color: var(--muted); }
+.tag-filter-clear {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.4rem; height: 1.4rem; padding: 0;
+  border: none; border-radius: 999px; background: none; color: var(--muted); cursor: pointer;
+}
+.tag-filter-clear:hover { color: var(--ink); background: var(--hover-bg); }
+/* A button styled as an inline text link (used in the empty-state message). */
+.link-btn {
+  border: none; background: none; padding: 0; cursor: pointer;
+  color: var(--accent); font: inherit; text-underline-offset: 2px; text-decoration: underline;
+}
+.link-btn:hover { text-decoration: none; }
+
+/* Toast — floating confirmation/error after save/update/delete. */
+.toast {
+  position: fixed;
+  top: 1.25rem;
+  right: 1.25rem;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: min(26rem, calc(100vw - 2.5rem));
+  padding: 0.7rem 0.7rem 0.7rem 0.95rem;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  animation: toast-in 0.25s ease-in-out;
+}
+.toast-ok { border-left-color: #2e7d32; }
+.toast-err { border-left-color: #d64545; }
+.toast-msg { flex: 1; }
+.toast-link { white-space: nowrap; font-size: 0.8rem; }
+.toast-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.toast-x:hover { color: var(--ink); background: var(--hover-bg); }
+@keyframes toast-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+/* The docked toolbar sits bottom-right on narrow screens, so the top-right toast
+   stays clear — just let it span the width. */
+@media (max-width: 56rem) {
+  .toast { left: 1.25rem; right: 1.25rem; max-width: none; }
+}
+
+/* Floating editor toolbar — fixed beside the column, locked near the top
+   (roughly where the title sits) rather than the viewport's middle, so it reads
+   as attached to the editor and stays put while scrolling. */
+.editor-fab {
+  position: fixed;
+  top: 10rem;
+  /* Sit just past the column's right edge; clamp toward the viewport edge when
+     the gutter is too narrow to hold it. */
+  left: min(calc(100% - 3.4rem), calc(50% + var(--max) / 2 + 0.9rem));
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.35rem;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.07);
+}
+.fab-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--muted);
+}
+.fab-btn:hover { color: var(--ink); background: var(--hover-bg); }
+.fab-btn.save { color: var(--accent); }
+.fab-btn.danger:hover { color: #d64545; }
+.fab-btn:disabled { opacity: 0.5; cursor: default; }
+/* New-entry + in the entry toolbar: accent-filled like the home header's + so the
+   "start a new entry" affordance reads the same wherever it appears. */
+.fab-btn.fab-new { color: #fff; background: var(--accent); text-decoration: none; }
+.fab-btn.fab-new:hover { color: #fff; background: var(--accent); filter: brightness(1.08); }
+/* A real separator line between button groups (delete, back-to-top) — spans the
+   full toolbar width rather than riding on a button's border (which looked crooked). */
+.fab-divider { align-self: stretch; height: 1px; margin: 0.15rem 0; background: var(--rule); }
+
+/* No room for a side gutter on narrow screens — dock it bottom-right instead. */
+@media (max-width: 56rem) {
+  .editor-fab {
+    top: auto;
+    bottom: 1.25rem;
+    left: auto;
+    right: 1.25rem;
+    transform: none;
+    flex-direction: row;
+  }
+  .fab-divider { align-self: stretch; width: 1px; height: auto; margin: 0 0.15rem; }
+}
+
+/* Prev/next — compact:  ← Title · date      Title · date → */
+.entry-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-top: 3.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--rule);
+}
+.entry-nav-link {
+  display: inline-flex;
+  align-items: flex-start; /* arrow sits beside the title line, not the centre of the two-line block */
+  gap: 0.4rem;
+  min-width: 0;
+  text-decoration: none;
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+.entry-nav-link:hover { color: var(--accent); }
+.nav-arrow { color: var(--muted); }
+.entry-nav-link:hover .nav-arrow { color: var(--accent); }
+/* Title and date stack: the date drops to its own line so a long title isn't
+   crowded onto one row. "next" right-aligns so its text hugs the → arrow. */
+.nav-text { display: flex; flex-direction: column; min-width: 0; }
+.entry-nav-link.next .nav-text { align-items: flex-end; text-align: right; }
+.nav-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.nav-d { color: var(--muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.back { display: inline-block; margin-top: 2rem; color: var(--muted); text-decoration: none; font-size: 0.85rem; }
+.back:hover { color: var(--accent); }
+
+/* Header nav */
+.site-head nav { display: flex; align-items: center; gap: 0.75rem; }
+.site-head nav a.nav-new {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--accent); color: #fff; border-radius: 7px; padding: 4px 7px;
+}
+.site-head nav a.nav-new:hover { color: #fff; filter: brightness(1.08); }
+
+/* Rendered entry view (Astro markdown → HTML). */
+.prose { line-height: 1.65; }
+.prose > :first-child { margin-top: 0; }
+.prose p { margin: 1rem 0; }
+.prose :is(h2, h3) { margin: 2.25rem 0 0.5rem; line-height: 1.25; }
+.prose h2 { font-size: 1.45rem; }
+.prose h3 { font-size: 1.18rem; }
+.prose ul, .prose ol { padding-left: 1.4rem; margin: 1rem 0; }
+.prose li { margin: 0.25rem 0; }
+/* Images (mostly phone photos) — center them, give breathing room from the
+   surrounding text, and cap their footprint. max-height keeps tall portrait
+   shots from filling the screen; max-width trims landscape ones below the
+   column width so they read as inset figures rather than full-bleed. */
+.prose img {
+  display: block;
+  margin: 1.75rem auto;
+  max-width: 68%;
+  max-height: 70vh;
+  height: auto;
+  /* Thin border in the primary/accent colour so an image always reads as a
+     distinct block — a dark photo on a dark theme (or light on light) won't
+     bleed into the background. */
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  cursor: zoom-in; /* signals the click-to-enlarge affordance */
+}
+
+/* Full-screen image viewer (see the script in posts/[slug]/index.astro).
+   Fixed overlay that dims the page; the image is centred and capped to the
+   viewport. Display toggled via .open so it stays out of the layout when idle. */
+.lightbox {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  /* Negative of the page: ink-tinted scrim over the bg, so it dims correctly
+     in both themes. */
+  background: color-mix(in srgb, var(--ink) 80%, transparent);
+  padding: 4vmin;
+  cursor: zoom-out;
+}
+.lightbox.open { display: flex; align-items: center; justify-content: center; }
+.lightbox img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 8px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+.prose blockquote {
+  margin: 1.5rem 0;
+  padding-left: 1rem;
+  border-left: 3px solid var(--rule);
+  color: var(--muted);
+  font-style: italic;
+}
+.prose :not(pre) > code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.85em;
+  background: var(--code-bg);
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+}
+.prose pre {
+  font-size: 0.85rem;
+  padding: 1rem;
+  border-radius: 6px;
+  overflow-x: auto;
+} /* Astro/Shiki sets the pre's dark background inline */
+
+/* Interactive figure sandboxes (```js canvas|svg|d3 → remarkSandbox). The figure
+   holds a live <iframe> preview and the source; data-mode picks which is shown.
+   The iframe's height is set by JS (the frame reports its content height); width
+   is fluid so figures track the prose column. */
+/* Inset the figure a little from the prose column (centered ~90%) so the live
+   preview reads as a set-apart figure rather than full-bleed body content. */
+.sandbox { width: 90%; margin: 1.75rem auto; position: relative; }
+.sandbox-frame {
+  width: 100%;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--bg);
+  display: block;
+}
+/* Source view: holds a Shiki-highlighted <pre class="astro-code"> built with
+   Astro's own highlighter (remarkSandbox.js), so it matches every other code
+   block. The inner <pre> carries its own padding/background via .prose pre. */
+/* Cap the source view to the figure's height (--sandbox-h, set on the figure)
+   and scroll it, so toggling to code doesn't expand the entry past the preview. */
+.sandbox-code > pre { margin: 0; max-height: var(--sandbox-h); overflow-y: auto; }
+.sandbox[data-mode='preview'] .sandbox-code { display: none; }
+.sandbox[data-mode='code'] .sandbox-stage { display: none; }
+/* A small unobtrusive toggle pinned to the figure's top-right corner. */
+.sandbox-toggle {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  font: 0.7rem/1 inherit;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+  cursor: pointer;
+}
+.sandbox-toggle:hover { color: var(--ink); }
+
+/* Inline sandbox preview inside the CodeMirror source editor (sandboxPreview.js).
+   A block in preview mode is a .cm-sandbox figure (reuses .sandbox); a block in
+   code mode gets a .cm-sandbox-bar above its editable source. */
+.cm-sandbox { margin: 0.5rem 0; }
+/* The bar that labels a recognized block and offers "Show preview". */
+.cm-sandbox-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.2rem 0 0.4rem;
+}
+.cm-sandbox-tag {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 0.05rem 0.4rem;
+}
+.cm-sandbox-show {
+  font: 0.7rem/1 inherit;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+}
+.cm-sandbox-show:hover { color: var(--ink); }
+
+/* CodeMirror markdown source editor */
+.cm-host .cm-editor { background: transparent; }
+.cm-host .cm-editor.cm-focused { outline: none; }
+
+/* Theme toggle — shows the icon for the action you'd take next */
+.theme-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  padding: 0.3rem;
+  display: inline-flex;
+  align-items: center;
+}
+.theme-toggle:hover { color: var(--ink); }
+.theme-toggle .icon-sun { display: none; }
+:root[data-theme='dark'] .theme-toggle .icon-sun { display: inline; }
+:root[data-theme='dark'] .theme-toggle .icon-moon { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .theme-toggle .icon-sun { display: inline; }
+  :root:not([data-theme='light']) .theme-toggle .icon-moon { display: none; }
+}

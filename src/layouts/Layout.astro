@@ -1,0 +1,27 @@
+---
+import '../styles/global.css';
+import { SITE_NAME } from '../config.js';
+
+// The single HTML shell every page renders through. Owns <head> basics and the
+// one no-flash theme script, so theming works everywhere with nothing to repeat.
+const { title } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title ? `${title} — ${SITE_NAME}` : SITE_NAME}</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>📓</text></svg>" />
+    <script is:inline>
+      // Apply the saved theme before paint; no saved value = follow the device.
+      const saved = localStorage.getItem('theme');
+      if (saved) document.documentElement.setAttribute('data-theme', saved);
+    </script>
+    <slot name="head" />
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>

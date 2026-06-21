@@ -1,0 +1,148 @@
+---
+import { getCollection, render } from 'astro:content';
+import Base from '../../../layouts/Base.astro';
+import EntryEditor from '../../../components/EntryEditor.jsx';
+import EntryNav from '../../../components/EntryNav.jsx';
+import { SITE_NAME } from '../../../config.js';
+import { createdOf } from '../../../lib/created.js';
+import { parseTags, tagClass, tagHref } from '../../../lib/tags.js';
+import EntryDates from '../../../components/EntryDates.jsx';
+
+export async function getStaticPaths() {
+  // One page per entry. Prev/next is rendered on the client (EntryNav) from the
+  // same /data/<year>.json the home uses, so the neighbour list isn't baked into
+  // each entry's static HTML.
+  const posts = await getCollection('posts');
+  return posts.map((post) => ({ params: { slug: post.id }, props: { post } }));
+}
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+
+// Both back-paths (header brand + footer link) carry the post's year so home
+// restores that year's context.
+const homeHref = `/?year=${post.id.slice(0, 4)}`;
+
+// The creation day (from the filename) and any `updated` stamp. Formatting +
+// the "show updated?" rule live in <EntryDates> (shared with the editor).
+const created = createdOf(post);
+const updated = post.data.updated;
+
+const tags = parseTags(post.data.tags);
+---
+
+<Base title={post.data.title} hideNew>
+  <h1 slot="brand"><a href={homeHref}>{ SITE_NAME }</a></h1>
+  {/* Static, server-rendered view. The editor hides this in place when editing.
+      `data-pagefind-body` scopes the search index to entry pages only — the home,
+      editor and login pages lack it, so Pagefind skips them. The h1 inside becomes
+      the result title; the created date is exposed as filterable/displayable meta. */}
+  <div id="entry-view" data-pagefind-body>
+    <div class="entry-bar">
+      <h1 class="entry-h1" data-pagefind-meta="title">{post.data.title}</h1>
+    </div>
+    {/* One meta row below the title: tags on the left, dates on the right (same
+        layout in the editor). Tags wrap freely so a long set doesn't crowd on
+        mobile, and each chip ellipsises if a tag is long. */}
+    <div class="entry-meta-block">
+      {tags.length > 0 && (
+        <ul class="entry-tags" aria-label="Tags">
+          {tags.map((tag) => (
+            <li><a class={tagClass(tag)} href={tagHref(tag)} title={tag}><span class="tag-label">{tag}</span></a></li>
+          ))}
+        </ul>
+      )}
+      <EntryDates created={created.toISOString()} updated={updated ? updated.toISOString() : null} pagefind />
+    </div>
+    <div class="prose"><Content /></div>
+  </div>
+
+  {/* Markdown source editor; renders only while editing (?edit). */}
+  <EntryEditor
+    markdown={post.body}
+    title={post.data.title}
+    date={created.toISOString()}
+    updated={updated ? updated.toISOString() : null}
+    path={`src/content/posts/${post.id}.md`}
+    tags={tags.join(", ")}
+    client:only="react"
+  />
+
+  {/* Prev/next is client-only, resolved at runtime from the per-year data, so the
+      neighbour list isn't baked into this page's static HTML. */}
+  <EntryNav id={post.id} client:only="react" />
+
+  <a class="back" href={homeHref}>← { SITE_NAME }</a>
+
+  {/* Full-screen image viewer. Static markup + a tiny vanilla script (no React
+      island needed): clicking any prose image opens it here, since most posts
+      are phone photos worth seeing large. Hidden until opened. */}
+  <div id="lightbox" class="lightbox" aria-hidden="true">
+    <img alt="" />
+  </div>
+  <script>
+    // Delegate clicks so it covers every image in the (server-rendered) prose,
+    // including ones added by future edits without re-binding.
+    const box = document.getElementById('lightbox');
+    const full = box.querySelector('img');
+
+    function open(src, alt) {
+      full.src = src;
+      full.alt = alt || '';
+      box.classList.add('open');
+      box.setAttribute('aria-hidden', 'false');
+      // Lock background scroll while the overlay is up.
+      document.body.style.overflow = 'hidden';
+    }
+    function close() {
+      box.classList.remove('open');
+      box.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+      // Drop the src so a huge image isn't held in memory between views.
+      full.removeAttribute('src');
+    }
+
+    document.addEventListener('click', (e) => {
+      const img = e.target.closest('.prose img');
+      if (img) { open(img.currentSrc || img.src, img.alt); return; }
+      // A click anywhere on the overlay (image included) closes it.
+      if (box.classList.contains('open') && e.target.closest('#lightbox')) close();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && box.classList.contains('open')) close();
+    });
+  </script>
+
+  {/* Interactive figure sandboxes (```js canvas|svg|d3 → remarkSandbox). Two
+      jobs, both vanilla like the lightbox: (1) size each iframe to its content,
+      since a frame can't size itself — every frame postMessages its height out;
+      (2) toggle a figure between its live preview and its source. */}
+  <script>
+    window.addEventListener('message', (e) => {
+      const h = e.data && e.data.__sandboxHeight;
+      if (typeof h !== 'number') return;
+      // Match the message to its frame by contentWindow (no origin to trust —
+      // the frames are null-origin sandboxes — and we only ever set a height).
+      for (const f of document.querySelectorAll('.sandbox-frame')) {
+        if (f.contentWindow === e.source) {
+          f.style.height = h + 'px';
+          // Cap the (hidden) code view to the figure's *rendered* height so
+          // toggling preview↔code doesn't jump. The rendered height tracks the
+          // column width — narrower on mobile, where the nominal WxH would be
+          // furthest off — so this survives any viewport. Guard 0: a frame
+          // hidden in code mode can report 0, which mustn't collapse the cap.
+          if (h > 0) f.closest('.sandbox')?.style.setProperty('--sandbox-h', h + 'px');
+          break;
+        }
+      }
+    });
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('.sandbox-toggle');
+      if (!btn) return;
+      const fig = btn.closest('.sandbox');
+      const showingCode = fig.getAttribute('data-mode') === 'code';
+      fig.setAttribute('data-mode', showingCode ? 'preview' : 'code');
+      btn.textContent = showingCode ? 'Show code' : 'Show preview';
+    });
+  </script>
+</Base>

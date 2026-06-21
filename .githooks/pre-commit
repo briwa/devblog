@@ -1,0 +1,35 @@
+#!/bin/sh
+# Stamp `updated:` into the frontmatter of edited blog entries.
+#
+# Only files staged as MODIFIED under src/content/posts/ are touched — newly
+# added posts are left alone so created === updated, matching the in-app editor
+# (which likewise stamps `updated` on edit but never on create).
+set -e
+
+now=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
+
+git diff --cached --name-only --diff-filter=M -- src/content/posts/ | while read -r file; do
+  case "$file" in *.md) ;; *) continue ;; esac
+  [ -f "$file" ] || continue
+
+  tmp=$(mktemp)
+  # In the frontmatter block (between the first two `---`), replace an existing
+  # `updated:` line in place, or insert one just before the closing `---`.
+  awk -v now="$now" '
+    BEGIN { fm = 0; done = 0 }
+    NR == 1 && $0 == "---" { fm = 1; print; next }
+    fm == 1 && $0 == "---" {
+      if (!done) { print "updated: " now; done = 1 }
+      fm = 0; print; next
+    }
+    fm == 1 && /^updated:/ { print "updated: " now; done = 1; next }
+    { print }
+  ' "$file" > "$tmp"
+
+  if ! cmp -s "$file" "$tmp"; then
+    mv "$tmp" "$file"
+    git add "$file"
+  else
+    rm -f "$tmp"
+  fi
+done

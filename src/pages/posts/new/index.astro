@@ -1,0 +1,11 @@
+---
+import Base from '../../../layouts/Base.astro';
+import EntryEditor from '../../../components/EntryEditor.jsx';
+// New entry: the markdown source editor in always-editing mode. Creating entries
+// is a dev-only feature (see EntryEditor) — in a production build the editor is
+// read-only, so this page has nothing to save.
+---
+
+<Base title="New entry">
+  <EntryEditor isNew={true} client:only="react" />
+</Base>
