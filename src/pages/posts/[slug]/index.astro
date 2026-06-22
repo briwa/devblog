@@ -31,7 +31,7 @@ const updated = post.data.updated;
 const tags = parseTags(post.data.tags);
 ---
 
-<Base title={post.data.title} hideNew>
+<Base title={post.data.title}>
   <h1 slot="brand"><a href={homeHref}>{ SITE_NAME }</a></h1>
   {/* Static, server-rendered view. The editor hides this in place when editing.
       `data-pagefind-body` scopes the search index to entry pages only — the home,
@@ -46,7 +46,10 @@ const tags = parseTags(post.data.tags);
         mobile, and each chip ellipsises if a tag is long. */}
     <div class="entry-meta-block">
       {tags.length > 0 && (
-        <ul class="entry-tags" aria-label="Tags">
+        // data-pagefind-ignore: the tags sit inside the indexed body, so without
+        // this their text leaks into search excerpts (and matches queries). The
+        // date beside them stays indexed — it's separate data-pagefind-meta.
+        <ul class="entry-tags" aria-label="Tags" data-pagefind-ignore>
           {tags.map((tag) => (
             <li><a class={tagClass(tag)} href={tagHref(tag)} title={tag}><span class="tag-label">{tag}</span></a></li>
           ))}

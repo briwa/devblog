@@ -91,7 +91,12 @@ a:hover { text-decoration: none; }
 
 /* Home: GitHub-style contribution heatmap + that year's entry list */
 .hm-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.75rem; }
-.hm-total { color: var(--muted); font-size: 0.85rem; }
+.hm-total { color: var(--muted); font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.4rem; }
+/* "New entry" now lives beside the count (the header + is gone) as a plain accent
+   text link after a thin separator. No bolding — it sits in the muted count line. */
+.hm-sep { color: var(--rule); }
+.hm-new { color: var(--accent); font-weight: inherit; }
+.hm-new:hover { text-decoration: underline; }
 .hm-years { display: flex; gap: 0.4rem; }
 .hm-years button {
   background: none; border: 1px solid var(--rule); border-radius: 6px;
@@ -304,6 +309,12 @@ a:hover { text-decoration: none; }
   background: color-mix(in srgb, var(--muted) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--muted) 22%, transparent);
 }
+/* On the home entry list the tags are secondary chrome (the entries are the
+   point), so shrink the chips 20% off the base size — font and height; the
+   em-based padding/gap follow the font. Scoped to the home chips (.ml-tags /
+   .ml-more-pop); the entry-page editor pills keep their full size. */
+.ml-tags .tag,
+.ml-more-pop .tag { font-size: 0.576rem; height: 1.36rem; }
 /* A chip that does something on click (every chip except a plain display one)
    shows the pointer and warms toward the ink color on hover. */
 a.tag, .ml-tags .tag, .ml-more-pop .tag { cursor: pointer; }
@@ -432,7 +443,7 @@ a.tag-label:hover { color: var(--ink); }
   top: 10rem;
   /* Sit just past the column's right edge; clamp toward the viewport edge when
      the gutter is too narrow to hold it. */
-  left: min(calc(100% - 3.4rem), calc(50% + var(--max) / 2 + 0.9rem));
+  left: min(calc(100% - 3.4rem), calc(50% + var(--max) / 2 + 1.6rem));
   z-index: 20;
   display: flex;
   flex-direction: column;
@@ -610,22 +621,17 @@ a.tag-label:hover { color: var(--ink); }
 .sandbox-code > pre { margin: 0; max-height: var(--sandbox-h); overflow-y: auto; }
 .sandbox[data-mode='preview'] .sandbox-code { display: none; }
 .sandbox[data-mode='code'] .sandbox-stage { display: none; }
-/* A small unobtrusive toggle pinned to the figure's top-right corner. */
+/* A small unobtrusive toggle pinned to the figure's top-right corner. Its box
+   styling is shared with the editor's .cm-sandbox-show below so the two read
+   identically; only the overlay positioning + an opaque background (it sits over
+   the figure, so transparent would be unreadable) are specific to it here. */
 .sandbox-toggle {
   position: absolute;
   top: 0.4rem;
   right: 0.4rem;
-  font: 0.7rem/1 inherit;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--muted);
   background: var(--bg);
-  border: 1px solid var(--rule);
-  border-radius: 4px;
-  padding: 0.3rem 0.5rem;
   cursor: pointer;
 }
-.sandbox-toggle:hover { color: var(--ink); }
 
 /* Inline sandbox preview inside the CodeMirror source editor (sandboxPreview.js).
    A block in preview mode is a .cm-sandbox figure (reuses .sandbox); a block in
@@ -638,27 +644,31 @@ a.tag-label:hover { color: var(--ink); }
   gap: 0.6rem;
   padding: 0.2rem 0 0.4rem;
 }
-.cm-sandbox-tag {
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--muted);
-  border: 1px solid var(--rule);
-  border-radius: 4px;
-  padding: 0.05rem 0.4rem;
-}
-.cm-sandbox-show {
-  font: 0.7rem/1 inherit;
+/* The tag label and the "Show preview" button share box metrics (font, padding,
+   border) so they line up at the same height — the tag just isn't clickable.
+   Longhands, not the `font` shorthand: `font: …/… inherit` is invalid (inherit
+   isn't a legal family inside the shorthand) and the whole declaration drops,
+   leaving each element on its inherited font — that was the size mismatch. The
+   button also needs font-family:inherit so it doesn't fall back to the UA font. */
+.cm-sandbox-tag,
+.cm-sandbox-show,
+.sandbox-toggle {
+  font-family: inherit;
+  font-size: 0.7rem;
+  line-height: 1;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--muted);
-  background: none;
   border: 1px solid var(--rule);
   border-radius: 4px;
   padding: 0.25rem 0.5rem;
+}
+.cm-sandbox-show {
+  background: none;
   cursor: pointer;
 }
-.cm-sandbox-show:hover { color: var(--ink); }
+.cm-sandbox-show:hover,
+.sandbox-toggle:hover { color: var(--ink); }
 
 /* CodeMirror markdown source editor */
 .cm-host .cm-editor { background: transparent; }

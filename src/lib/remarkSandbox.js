@@ -55,18 +55,22 @@ export function remarkSandbox() {
     await Promise.all(
       found.map(async ({ parent, index, spec, code }) => {
         const srcdoc = escapeAttr(buildSrcdoc(spec, code));
-        const codeHtml = await highlightCode(code); // matches the site's other blocks
-        // Preview (iframe) + highlighted source + a vanilla toggle. Sizing and
-        // the preview↔code toggle are wired up once on the entry page
-        // (src/pages/posts/[slug]/index.astro).
+        // Only highlight + ship the source view when the author opted in with the
+        // `code` flag; otherwise the figure is preview-only and we skip the work.
+        const codeHtml = spec.showCode ? await highlightCode(code) : ''; // matches the site's other blocks
+        // Preview (iframe), plus — only when opted in — the highlighted source and
+        // a vanilla toggle. Sizing and the preview↔code toggle are wired up once on
+        // the entry page (src/pages/posts/[slug]/index.astro).
         const html =
           // --sandbox-h carries the figure's height so the "Show code" view can
           // cap itself to it and scroll, rather than the source expanding the
           // entry's layout past the preview it replaces.
           `<figure class="sandbox" data-mode="preview" data-preset="${spec.preset}" style="--sandbox-h:${spec.h}px">` +
           `<div class="sandbox-stage"><iframe class="sandbox-frame" sandbox="allow-scripts" loading="lazy" title="interactive ${spec.preset} figure" srcdoc="${srcdoc}"></iframe></div>` +
-          `<div class="sandbox-code">${codeHtml}</div>` +
-          `<button class="sandbox-toggle" type="button">Show code</button>` +
+          (spec.showCode
+            ? `<div class="sandbox-code">${codeHtml}</div>` +
+              `<button class="sandbox-toggle" type="button">Show code</button>`
+            : '') +
           `</figure>`;
         parent.children[index] = { type: 'html', value: html };
       })

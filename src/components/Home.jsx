@@ -253,14 +253,22 @@ export default function Home() {
   return (
     <div className="home">
       <div className="hm-head">
-        <span className="hm-total">
-          {loading ? "…" : `${sorted.length} ${sorted.length === 1 ? "entry" : "entries"} in ${year}`}
-        </span>
         <div className="hm-years">
           {years.map((y) => (
             <button key={y} className={y === year ? "active" : ""} onClick={() => { autoPickYear.current = false; setYear(y); }}>{y}</button>
           ))}
         </div>
+        <span className="hm-total">
+          {loading ? "…" : `${sorted.length} ${sorted.length === 1 ? "entry" : "entries"} in ${year}`}
+          {/* The header "+" is gone; the only place to start an entry is here,
+              beside the count it pertains to. Owner-only (CAN_CREATE). */}
+          {CAN_CREATE && (
+            <>
+              <span className="hm-sep" aria-hidden="true">|</span>
+              <a href="/posts/new/" className="hm-new">New</a>
+            </>
+          )}
+        </span>
       </div>
 
       <div className="hm-cal">
@@ -360,7 +368,7 @@ export default function Home() {
             {activeTag ? (
               <>No entries tagged “{activeTag}” in {year}. <button className="link-btn" onClick={() => selectTag(null)}>Clear filter</button></>
             ) : (
-              <>No entries in {year}.{CAN_CREATE && <> <a href="/posts/new">Write one →</a></>}</>
+              <>No entries in {year}.</>
             )}
           </p>
         ))}

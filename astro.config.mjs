@@ -118,6 +118,22 @@ function devPublish() {
           }
 
           const editing = Boolean(body.path);
+
+          // Astro's dev content store doesn't pick up the FIRST file added to a
+          // previously-empty collection (a glob-loader limitation): getCollection
+          // keeps reporting the `posts` collection "does not exist or is empty",
+          // so the new entry's /posts/<slug> page 404s until the dev server is
+          // restarted. Detect that empty→first transition here and restart the
+          // server ourselves below, so the author never has to. Only matters for a
+          // brand-new entry (an edit can't be the first file) and only when the
+          // dir holds no posts yet, so normal publishing stays instant.
+          let wasEmpty = false;
+          if (!editing) {
+            const postsDir = join(root(), 'src', 'content', 'posts');
+            const existing = (await readdir(postsDir).catch(() => [])).filter((f) => f.endsWith('.md'));
+            wasEmpty = existing.length === 0;
+          }
+
           const iso = body.date || new Date().toISOString();
           const path = editing
             ? body.path
@@ -146,6 +162,16 @@ function devPublish() {
           const file = `---\ntitle: ${JSON.stringify(title)}\n${tagsLine}${updatedLine}---\n\n${markdown}\n`;
           await writeFile(join(root(), path), file, 'utf8');
           sendJson(res, 200, { ok: true, path, title, edited: editing });
+
+          // First-ever entry (see wasEmpty above): restart so Astro re-syncs the
+          // content collection. Done *after* responding, so the editor still gets
+          // its success toast; the author then lands on the home (served from disk
+          // here, so it's unaffected) while the server comes back, and by the time
+          // they open the entry the collection exists. One-time cost on post #1.
+          if (wasEmpty) {
+            console.log('[dev-publish] first entry created — restarting dev server to sync the content collection');
+            server.restart().catch((err) => console.error('[dev-publish] restart failed:', err));
+          }
         } catch (e) {
           sendJson(res, 500, { error: e.message });
         }

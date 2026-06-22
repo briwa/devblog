@@ -7,6 +7,9 @@
 //     ```js svg           → an <svg> root, exposes `svg`, `width`, `height`
 //     ```js d3 800x500    → an <svg> root + the d3 v7 global, custom size
 //
+// Append the bare token `code` (e.g. ```js d3 code) to expose a "Show code"
+// toggle on the published figure; without it the figure is preview-only.
+//
 // WHY a fenced code block (not a custom `<sandbox>` tag): markdown preserves a
 // fence's contents *verbatim* — blank lines, `<`, `>`, `&` all survive — whereas
 // a raw-HTML block ends at the first blank line and would shred any real snippet.
@@ -57,7 +60,11 @@ export function parseMeta(lang, meta) {
   if (!preset) return null;
   const size = tokens.find((t) => /^\d+x\d+$/.test(t));
   const [w, h] = size ? size.split('x').map(Number) : [DEFAULT_W, DEFAULT_H];
-  return { preset, w, h };
+  // Opt-in: a bare `code` token makes the published figure offer a "Show code"
+  // toggle. Off by default — a figure is just its running result unless the
+  // author explicitly wants to expose its source.
+  const showCode = tokens.includes('code');
+  return { preset, w, h, showCode };
 }
 
 // Build the inner document for one figure. `code` is the author's verbatim JS.

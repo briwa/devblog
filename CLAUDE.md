@@ -136,7 +136,13 @@ embedded in prose. The preset picks the surface and bindings:
 ```js canvas        → 2D canvas
 ```js svg 640x220   → an <svg> root
 ```js d3 800x500    → an <svg> root + the d3 v7 global (CDN), custom size
+```js d3 code       → same, but with a "Show code" toggle on the figure
 ````
+
+The published figure is **preview-only by default**; append the bare token `code`
+(in any position, e.g. ` ```js d3 800x500 code `) to expose a "Show code" toggle on
+it. (The in-editor preview always offers its own toggle regardless — you're editing
+the source there.)
 
 **What's in scope for the authored code** (set up by `buildSrcdoc` before your
 code runs; size defaults to `640x360`):
