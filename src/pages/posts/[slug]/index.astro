@@ -128,13 +128,19 @@ const tags = parseTags(post.data.tags);
       // the frames are null-origin sandboxes — and we only ever set a height).
       for (const f of document.querySelectorAll('.sandbox-frame')) {
         if (f.contentWindow === e.source) {
-          f.style.height = h + 'px';
-          // Cap the (hidden) code view to the figure's *rendered* height so
-          // toggling preview↔code doesn't jump. The rendered height tracks the
-          // column width — narrower on mobile, where the nominal WxH would be
-          // furthest off — so this survives any viewport. Guard 0: a frame
-          // hidden in code mode can report 0, which mustn't collapse the cap.
-          if (h > 0) f.closest('.sandbox')?.style.setProperty('--sandbox-h', h + 'px');
+          // Ignore a 0 height entirely. A frame hidden in code mode (its stage is
+          // display:none) reports 0 via its own ResizeObserver; applying it would
+          // collapse the iframe to 0px and "lose" the figure — and its play button —
+          // when toggled back to preview. Keeping the last good height makes the
+          // toggle a pure show/hide that preserves the frame's running state.
+          if (h > 0) {
+            f.style.height = h + 'px';
+            // Cap the (hidden) code view to the figure's *rendered* height so
+            // toggling preview↔code doesn't jump. The rendered height tracks the
+            // column width — narrower on mobile, where the nominal WxH would be
+            // furthest off — so this survives any viewport.
+            f.closest('.sandbox')?.style.setProperty('--sandbox-h', h + 'px');
+          }
           break;
         }
       }

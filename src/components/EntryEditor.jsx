@@ -238,6 +238,20 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
           // Recognize ```js canvas|svg|d3 blocks and give each an inline
           // Show preview / Show code toggle (src/lib/sandboxPreview.js).
           sandboxPreview(),
+          // Keep the caret in view while typing. The editor isn't its own
+          // scroll container — it grows with content and the *page* scrolls —
+          // so the browser doesn't reliably follow the caret past the bottom
+          // edge. When typing pushes the caret below a comfortable margin,
+          // nudge the window down by the overflow (the space is already there;
+          // we just have to scroll to it). Only on real input (docChanged), so
+          // it never fights the view<->edit scroll-anchoring or focus.
+          EditorView.updateListener.of((u) => {
+            if (!u.docChanged) return;
+            const c = u.view.coordsAtPos(u.view.state.selection.main.head);
+            if (!c) return;
+            const overflow = c.bottom - (window.innerHeight - HEADER_OFFSET);
+            if (overflow > 0) window.scrollBy(0, overflow);
+          }),
         ],
       }),
       parent: hostRef.current,

@@ -86,11 +86,36 @@ export function buildSrcdoc({ preset, w, h }, code) {
   // d3 is a classic script, so it runs (and defines `d3`) before the next one.
   const lib = preset === 'd3' ? `<script src="${D3_SRC}"></script>` : '';
 
+  // A canvas figure animates via loop() and shouldn't burn rAF the moment the page
+  // loads — it opens PAUSED behind a centered, YouTube-style play button and runs
+  // only on click. svg/d3 figures are typically a single static draw, so they run
+  // on load as before. The button lives INSIDE the frame (not as a host overlay)
+  // so the deferral behaves identically on the published page and in the editor's
+  // live preview, both of which share this one srcdoc — no extra host JS, no
+  // cross-frame "start" message. The blank canvas placeholder reports its height
+  // just like a drawn one, so the frame is already sized to center the button in.
+  const deferred = isCanvas;
+  const playBtn = deferred
+    ? `<button id="__play" type="button" aria-label="Run figure">` +
+      `<svg viewBox="0 0 100 100" width="30" height="30" aria-hidden="true"><polygon points="38,28 38,72 74,50" fill="currentColor"/></svg>` +
+      `</button>`
+    : '';
+  // Only canvas frames carry the play overlay, so only they need its CSS — keep
+  // the svg/d3 frames free of dead rules. inset:0 + margin:auto centers the button
+  // over the (unpositioned) body, which fills the frame = the canvas box. The
+  // neutral translucent fill reads on both light and dark themes; the triangle is
+  // nudged right so it looks optically centered in the circle.
+  const playCss = deferred
+    ? `#__play{position:absolute;inset:0;margin:auto;width:64px;height:64px;border:0;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;background:rgba(20,20,20,.55);transition:background .15s,transform .15s}
+       #__play:hover{background:rgba(20,20,20,.8);transform:scale(1.06)}`
+    : '';
+
   const doc = `<!doctype html><html><head><meta charset="utf-8"><style>
     html,body{margin:0}
     canvas,svg{display:block;max-width:100%;height:auto}
     .err{color:#c0392b;white-space:pre-wrap;font:12px/1.5 ui-monospace,monospace;padding:.75rem}
-  </style></head><body>${surface}${lib}<script>
+    ${playCss}
+  </style></head><body>${surface}${playBtn}${lib}<script>
     ${setup}
     // A self-cancelling rAF helper so authored animation loops are easy to write
     // and die with the frame: loop(fn) runs fn every frame, returns a stop().
@@ -99,8 +124,15 @@ export function buildSrcdoc({ preset, w, h }, code) {
     // unsized) iframe to fit, and re-report whenever the layout reflows.
     const report = () => parent.postMessage({ __sandboxHeight: document.documentElement.scrollHeight }, '*');
     new ResizeObserver(report).observe(document.documentElement);
-    try { ${code} } catch (e) { document.body.innerHTML = '<pre class=err>' + (e && e.stack || e) + '</pre>'; }
-    report();
+    // The authored code, wrapped so a throw renders its stack into the frame
+    // instead of failing silently. Deferred (canvas) figures call this on click;
+    // others on load.
+    const run = () => { try { ${code} } catch (e) { document.body.innerHTML = '<pre class=err>' + (e && e.stack || e) + '</pre>'; } report(); };
+    ${deferred
+      ? `const __play = document.getElementById('__play');
+         __play.addEventListener('click', () => { __play.remove(); run(); });
+         report();`
+      : `run();`}
   </script></body></html>`;
 
   return doc;

@@ -129,7 +129,7 @@ const resizePlugin = ViewPlugin.fromClass(
       this.view = view;
       this.onMessage = (e) => {
         const h = e.data && e.data.__sandboxHeight;
-        if (typeof h !== "number") return;
+        if (typeof h !== "number" || h <= 0) return; // ignore a hidden frame's 0
         for (const f of view.dom.querySelectorAll(".cm-sandbox iframe")) {
           if (f.contentWindow === e.source) {
             f.style.height = h + "px";

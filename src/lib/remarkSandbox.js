@@ -66,7 +66,13 @@ export function remarkSandbox() {
           // cap itself to it and scroll, rather than the source expanding the
           // entry's layout past the preview it replaces.
           `<figure class="sandbox" data-mode="preview" data-preset="${spec.preset}" style="--sandbox-h:${spec.h}px">` +
-          `<div class="sandbox-stage"><iframe class="sandbox-frame" sandbox="allow-scripts" loading="lazy" title="interactive ${spec.preset} figure" srcdoc="${srcdoc}"></iframe></div>` +
+          // NOT loading="lazy": the "Show code" toggle hides the stage with
+          // display:none, and a lazy iframe re-fires its load when shown again —
+          // which throws away the running figure (a played canvas resets to its
+          // paused play-button state, an animation restarts). Eager keeps the
+          // frame's browsing context alive across the toggle so it's a pure
+          // show/hide. These are tiny srcdoc frames, so eager load is cheap.
+          `<div class="sandbox-stage"><iframe class="sandbox-frame" sandbox="allow-scripts" title="interactive ${spec.preset} figure" srcdoc="${srcdoc}"></iframe></div>` +
           (spec.showCode
             ? `<div class="sandbox-code">${codeHtml}</div>` +
               `<button class="sandbox-toggle" type="button">Show code</button>`

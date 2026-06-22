@@ -616,9 +616,12 @@ a.tag-label:hover { color: var(--ink); }
 /* Source view: holds a Shiki-highlighted <pre class="astro-code"> built with
    Astro's own highlighter (remarkSandbox.js), so it matches every other code
    block. The inner <pre> carries its own padding/background via .prose pre. */
-/* Cap the source view to the figure's height (--sandbox-h, set on the figure)
-   and scroll it, so toggling to code doesn't expand the entry past the preview. */
-.sandbox-code > pre { margin: 0; max-height: var(--sandbox-h); overflow-y: auto; }
+/* Match the source view to the figure's height (--sandbox-h, set on the figure)
+   exactly — height, not max-height — so the code box is the same size as the
+   preview it replaces (a short snippet doesn't shrink the box; toggling never
+   makes the entry jump). Overflow scrolls within that fixed height. box-sizing is
+   border-box globally, so the pre's own padding is included in the height. */
+.sandbox-code > pre { margin: 0; height: var(--sandbox-h); overflow-y: auto; }
 .sandbox[data-mode='preview'] .sandbox-code { display: none; }
 .sandbox[data-mode='code'] .sandbox-stage { display: none; }
 /* A small unobtrusive toggle pinned to the figure's top-right corner. Its box
