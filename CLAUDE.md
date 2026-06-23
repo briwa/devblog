@@ -144,6 +144,18 @@ The published figure is **preview-only by default**; append the bare token `code
 it. (The in-editor preview always offers its own toggle regardless — you're editing
 the source there.)
 
+Append `bg=<color>` (e.g. ` ```js canvas bg=#111 `) to paint the figure background
+a specific color instead of inheriting the theme. The value is a single token, so
+hex (`#111`), named colors (`black`) and space-free functional forms
+(`rgb(20,20,20)`) all work. Canvas figures' centered play button reads its
+rendered background at runtime and flips to a light-on-dark palette over a dark
+background, so the button always contrasts.
+
+By default a **canvas** figure opens paused behind that play button and runs only
+on click (so animations don't burn rAF until asked). Append the bare token `auto`
+(e.g. ` ```js canvas auto `) to make it run on load instead — no play button.
+`auto` has no effect on svg/d3, which already run on load.
+
 **What's in scope for the authored code** (set up by `buildSrcdoc` before your
 code runs; size defaults to `640x360`):
 

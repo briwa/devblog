@@ -10,6 +10,10 @@
 // Append the bare token `code` (e.g. ```js d3 code) to expose a "Show code"
 // toggle on the published figure; without it the figure is preview-only.
 //
+// Append `bg=<color>` (e.g. ```js canvas bg=#111) to paint the figure's
+// background a specific color instead of inheriting the theme. The play overlay
+// (canvas figures) auto-picks a contrasting palette for the chosen background.
+//
 // WHY a fenced code block (not a custom `<sandbox>` tag): markdown preserves a
 // fence's contents *verbatim* — blank lines, `<`, `>`, `&` all survive — whereas
 // a raw-HTML block ends at the first blank line and would shred any real snippet.
@@ -64,7 +68,20 @@ export function parseMeta(lang, meta) {
   // toggle. Off by default — a figure is just its running result unless the
   // author explicitly wants to expose its source.
   const showCode = tokens.includes('code');
-  return { preset, w, h, showCode };
+  // Opt-in: a bare `auto` token makes a canvas figure run on load instead of
+  // opening paused behind a play button. Default stays deferred (play button) so
+  // animations don't burn rAF until the reader asks for them; `auto` is for the
+  // rare figure that should be moving the moment it scrolls into view. No effect
+  // on svg/d3, which already run on load.
+  const auto = tokens.includes('auto');
+  // Optional `bg=<color>` paints the figure body. The value is a single token
+  // (no spaces), so hex (`#111`), named colors (`black`) and space-free
+  // functional forms (`rgb(20,20,20)`) all work. Restrict to a safe CSS-color
+  // charset so a stray token can't break out of the style/attribute it lands in.
+  const bgToken = tokens.find((t) => t.startsWith('bg='));
+  let bg = bgToken ? bgToken.slice(3) : '';
+  if (bg && !/^[#\w(),.%-]+$/.test(bg)) bg = '';
+  return { preset, w, h, showCode, bg, auto };
 }
 
 // Build the inner document for one figure. `code` is the author's verbatim JS.
@@ -72,7 +89,7 @@ export function parseMeta(lang, meta) {
 // attribute (escapeAttr); the editor's live preview passes it straight to a
 // React `srcDoc` prop, which does its own escaping — so escaping here would
 // double-encode. Keep this function attribute-agnostic.
-export function buildSrcdoc({ preset, w, h }, code) {
+export function buildSrcdoc({ preset, w, h, bg, auto }, code) {
   const isCanvas = preset === 'canvas';
   // The surface element and the bindings handed to the authored code.
   const surface = isCanvas ? '<canvas></canvas>' : `<svg viewBox="0 0 ${w} ${h}"></svg>`;
@@ -87,14 +104,15 @@ export function buildSrcdoc({ preset, w, h }, code) {
   const lib = preset === 'd3' ? `<script src="${D3_SRC}"></script>` : '';
 
   // A canvas figure animates via loop() and shouldn't burn rAF the moment the page
-  // loads — it opens PAUSED behind a centered, YouTube-style play button and runs
-  // only on click. svg/d3 figures are typically a single static draw, so they run
-  // on load as before. The button lives INSIDE the frame (not as a host overlay)
+  // loads — by default it opens PAUSED behind a centered, YouTube-style play button
+  // and runs only on click. The `auto` token opts a canvas figure into running on
+  // load instead. svg/d3 figures are typically a single static draw, so they run
+  // on load regardless. The button lives INSIDE the frame (not as a host overlay)
   // so the deferral behaves identically on the published page and in the editor's
   // live preview, both of which share this one srcdoc — no extra host JS, no
   // cross-frame "start" message. The blank canvas placeholder reports its height
   // just like a drawn one, so the frame is already sized to center the button in.
-  const deferred = isCanvas;
+  const deferred = isCanvas && !auto;
   const playBtn = deferred
     ? `<button id="__play" type="button" aria-label="Run figure">` +
       `<svg viewBox="0 0 100 100" width="30" height="30" aria-hidden="true"><polygon points="38,28 38,72 74,50" fill="currentColor"/></svg>` +
@@ -103,15 +121,25 @@ export function buildSrcdoc({ preset, w, h }, code) {
   // Only canvas frames carry the play overlay, so only they need its CSS — keep
   // the svg/d3 frames free of dead rules. inset:0 + margin:auto centers the button
   // over the (unpositioned) body, which fills the frame = the canvas box. The
-  // neutral translucent fill reads on both light and dark themes; the triangle is
-  // nudged right so it looks optically centered in the circle.
+  // default dark translucent fill reads on light/transparent backgrounds; the
+  // `.on-dark` variant (applied at runtime when the background is dark — see
+  // below) flips to a light fill with a dark icon so the button always contrasts.
+  // The triangle is nudged right so it looks optically centered in the circle.
   const playCss = deferred
     ? `#__play{position:absolute;inset:0;margin:auto;width:64px;height:64px;border:0;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;background:rgba(20,20,20,.55);transition:background .15s,transform .15s}
-       #__play:hover{background:rgba(20,20,20,.8);transform:scale(1.06)}`
+       #__play:hover{background:rgba(20,20,20,.8);transform:scale(1.06)}
+       #__play.on-dark{color:#111;background:rgba(245,245,245,.6)}
+       #__play.on-dark:hover{background:rgba(245,245,245,.85)}`
     : '';
+
+  // A custom figure background, if requested. Painted on the body so it sits
+  // behind the canvas/svg surface; without it the body is transparent and the
+  // frame shows the theme background (.sandbox-frame's var(--bg)) as before.
+  const bgCss = bg ? `body{background:${bg}}` : '';
 
   const doc = `<!doctype html><html><head><meta charset="utf-8"><style>
     html,body{margin:0}
+    ${bgCss}
     canvas,svg{display:block;max-width:100%;height:auto}
     .err{color:#c0392b;white-space:pre-wrap;font:12px/1.5 ui-monospace,monospace;padding:.75rem}
     ${playCss}
@@ -130,6 +158,17 @@ export function buildSrcdoc({ preset, w, h }, code) {
     const run = () => { try { ${code} } catch (e) { document.body.innerHTML = '<pre class=err>' + (e && e.stack || e) + '</pre>'; } report(); };
     ${deferred
       ? `const __play = document.getElementById('__play');
+         // Give the play button a palette that contrasts with whatever the figure
+         // actually renders behind it: read the body's COMPUTED background, and if
+         // it's dark (and opaque) switch to the light-on-dark variant. Reading the
+         // computed value means this works for any CSS color the author writes —
+         // named, hex, rgb(), hsl() — without parsing color syntax ourselves. A
+         // transparent body (no bg= given) keeps the default, which already reads
+         // on the theme background.
+         const __c = getComputedStyle(document.body).backgroundColor.match(/[\\d.]+/g);
+         if (__c && (__c.length < 4 || +__c[3] > 0) && (0.299*__c[0] + 0.587*__c[1] + 0.114*__c[2]) < 128) {
+           __play.classList.add('on-dark');
+         }
          __play.addEventListener('click', () => { __play.remove(); run(); });
          report();`
       : `run();`}
