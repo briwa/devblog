@@ -60,6 +60,11 @@ export const escapeHtml = (s) =>
 export function parseMeta(lang, meta) {
   if (lang !== 'js' && lang !== 'javascript') return null;
   const tokens = (meta || '').trim().split(/\s+/).filter(Boolean);
+  // A `lib` block isn't a figure: it renders no iframe, just its source. Its code
+  // is concatenated into EVERY figure in the same file as a shared prelude (see
+  // sandboxPrelude + buildSrcdoc), so helpers/consts written once are available to
+  // all figures. Recognized before the preset check since it has no preset.
+  if (tokens.includes('lib')) return { snippet: true };
   const preset = tokens.find((t) => PRESETS.has(t));
   if (!preset) return null;
   const size = tokens.find((t) => /^\d+x\d+$/.test(t));
@@ -84,12 +89,26 @@ export function parseMeta(lang, meta) {
   return { preset, w, h, showCode, bg, auto };
 }
 
-// Build the inner document for one figure. `code` is the author's verbatim JS.
+// Concatenate every `lib` block's source into one shared prelude string. Given a
+// list of parsed blocks (each carrying `snippet` + `code`, in document order),
+// returns the source that gets prepended into every figure's frame. The iframes
+// can't share globals at runtime (separate null-origin realms), so sharing is
+// done here by composing source text — each frame gets its own private copy of
+// the helpers, written once by the author. Blank if the file has no lib blocks.
+export function sandboxPrelude(blocks) {
+  return (blocks || [])
+    .filter((b) => b.snippet)
+    .map((b) => b.code)
+    .join('\n\n');
+}
+
+// Build the inner document for one figure. `code` is the author's verbatim JS;
+// `prelude` is the shared `lib` source (sandboxPrelude) prepended before it.
 // Returns the RAW document string. The remark plugin escapes it for an HTML
 // attribute (escapeAttr); the editor's live preview passes it straight to a
 // React `srcDoc` prop, which does its own escaping — so escaping here would
 // double-encode. Keep this function attribute-agnostic.
-export function buildSrcdoc({ preset, w, h, bg, auto }, code) {
+export function buildSrcdoc({ preset, w, h, bg, auto }, code, prelude = '') {
   const isCanvas = preset === 'canvas';
   // The surface element and the bindings handed to the authored code.
   const surface = isCanvas ? '<canvas></canvas>' : `<svg viewBox="0 0 ${w} ${h}"></svg>`;
@@ -154,8 +173,11 @@ export function buildSrcdoc({ preset, w, h, bg, auto }, code) {
     new ResizeObserver(report).observe(document.documentElement);
     // The authored code, wrapped so a throw renders its stack into the frame
     // instead of failing silently. Deferred (canvas) figures call this on click;
-    // others on load.
-    const run = () => { try { ${code} } catch (e) { document.body.innerHTML = '<pre class=err>' + (e && e.stack || e) + '</pre>'; } report(); };
+    // others on load. The shared \`lib\` prelude runs first, inside the same
+    // try/catch (so a broken helper surfaces in the frame too) and the same scope
+    // (so its consts/functions are visible to the figure's own code below).
+    const run = () => { try { ${prelude}
+${code} } catch (e) { document.body.innerHTML = '<pre class=err>' + (e && e.stack || e) + '</pre>'; } report(); };
     ${deferred
       ? `const __play = document.getElementById('__play');
          // Give the play button a palette that contrasts with whatever the figure

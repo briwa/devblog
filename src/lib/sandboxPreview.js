@@ -16,7 +16,7 @@
 
 import { Decoration, EditorView, WidgetType, ViewPlugin } from "@codemirror/view";
 import { StateField, StateEffect } from "@codemirror/state";
-import { buildSrcdoc, findSandboxBlocks } from "./sandbox.js";
+import { buildSrcdoc, findSandboxBlocks, sandboxPrelude } from "./sandbox.js";
 
 // Toggle block #i between preview and code. Carries the block's index.
 const togglePreview = StateEffect.define();
@@ -39,13 +39,14 @@ const previewField = StateField.define({
 
 // The running figure that replaces a block in preview mode.
 class PreviewWidget extends WidgetType {
-  constructor(block, index) { super(); this.block = block; this.index = index; }
+  constructor(block, index, prelude) { super(); this.block = block; this.index = index; this.prelude = prelude; }
   // Reuse the existing DOM (don't reload the iframe) unless the code, preset,
-  // size, or index actually changed — so editing elsewhere never restarts a
-  // running animation.
+  // size, index, or shared `lib` prelude actually changed — so editing elsewhere
+  // never restarts a running animation, but editing a lib block (which this
+  // figure inlines) correctly rebuilds it.
   eq(o) {
     const a = this.block, b = o.block;
-    return this.index === o.index && a.code === b.code && a.preset === b.preset && a.w === b.w && a.h === b.h;
+    return this.index === o.index && a.code === b.code && a.preset === b.preset && a.w === b.w && a.h === b.h && this.prelude === o.prelude;
   }
   toDOM(view) {
     const fig = document.createElement("figure");
@@ -57,7 +58,7 @@ class PreviewWidget extends WidgetType {
     iframe.className = "sandbox-frame";
     iframe.setAttribute("sandbox", "allow-scripts");
     iframe.title = `live ${this.block.preset} preview`;
-    iframe.srcdoc = buildSrcdoc(this.block, this.block.code);
+    iframe.srcdoc = buildSrcdoc(this.block, this.block.code, this.prelude);
     stage.appendChild(iframe);
     const btn = document.createElement("button");
     btn.type = "button";
@@ -94,16 +95,39 @@ class CodeBar extends WidgetType {
   ignoreEvent() { return true; }
 }
 
+// A `lib` block has no preview to flip to — it just feeds shared code into the
+// figures. So it stays editable, with a non-interactive "lib" tag above it (no
+// "Show preview" button) to mark what it is.
+class LibBar extends WidgetType {
+  constructor(index) { super(); this.index = index; }
+  eq(o) { return o.index === this.index; }
+  toDOM() {
+    const bar = document.createElement("div");
+    bar.className = "cm-sandbox-bar";
+    const tag = document.createElement("span");
+    tag.className = "cm-sandbox-tag";
+    tag.textContent = "lib";
+    bar.append(tag);
+    return bar;
+  }
+  ignoreEvent() { return true; }
+}
+
 function buildDecorations(state) {
   const previews = state.field(previewField);
   const blocks = findSandboxBlocks(state.doc.toString());
+  // Shared prelude across the whole document, so a previewed figure inlines the
+  // same lib code the published page would (recomputed on every doc change).
+  const prelude = sandboxPrelude(blocks);
   const ranges = [];
   blocks.forEach((b, i) => {
     // Only decorate a *closed* block; an unterminated fence being typed would
     // otherwise extend to the doc end and swallow everything below it.
     if (!b.closed) return;
-    if (previews.has(i)) {
-      ranges.push(Decoration.replace({ widget: new PreviewWidget(b, i), block: true }).range(b.from, b.to));
+    if (b.snippet) {
+      ranges.push(Decoration.widget({ widget: new LibBar(i), side: -1, block: true }).range(b.from));
+    } else if (previews.has(i)) {
+      ranges.push(Decoration.replace({ widget: new PreviewWidget(b, i, prelude), block: true }).range(b.from, b.to));
     } else {
       ranges.push(Decoration.widget({ widget: new CodeBar(b.preset, i), side: -1, block: true }).range(b.from));
     }

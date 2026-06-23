@@ -156,6 +156,18 @@ on click (so animations don't burn rAF until asked). Append the bare token `auto
 (e.g. ` ```js canvas auto `) to make it run on load instead — no play button.
 `auto` has no effect on svg/d3, which already run on load.
 
+A ` ```js lib ` block is **shared code, not a figure**: it renders no iframe (just
+its highlighted source under a small "lib" tag), and its code is concatenated — in
+document order — into *every* figure in the same file as a prelude, so helpers and
+consts written once are in scope for all figures. This is a **build-time text
+composition**, not runtime sharing: the sandbox iframes are isolated null-origin
+realms with no shared `window`, so `lib` source is simply inlined into each frame
+(each gets its own private copy — written once by the author). The prelude runs
+inside each figure's `try`/`catch` and outer scope (`sandboxPrelude` + `buildSrcdoc`
+in `src/lib/sandbox.js`). All `lib` blocks apply to all figures regardless of
+order. A `lib` block should *define* things, not run them (it executes in every
+frame).
+
 **What's in scope for the authored code** (set up by `buildSrcdoc` before your
 code runs; size defaults to `640x360`):
 

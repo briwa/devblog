@@ -636,6 +636,26 @@ a.tag-label:hover { color: var(--ink); }
   cursor: pointer;
 }
 
+/* A `lib` block (```js lib): shared helper source injected into every figure in
+   the file (remarkSandbox.js). It renders no iframe — just its highlighted source
+   with a small "lib" tag pinned in the corner so it reads as shared code, not a
+   figure. Reuses .sandbox for the column inset + position:relative. */
+.sandbox-lib > pre { margin: 0; }
+.sandbox-lib-tag {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  font-size: 0.7rem;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  background: var(--bg);
+}
+
 /* Inline sandbox preview inside the CodeMirror source editor (sandboxPreview.js).
    A block in preview mode is a .cm-sandbox figure (reuses .sandbox); a block in
    code mode gets a .cm-sandbox-bar above its editable source. */

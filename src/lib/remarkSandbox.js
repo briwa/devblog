@@ -14,7 +14,7 @@
 // raw HTML before rehype runs, and Shiki consumes the fence `meta` we need.
 
 import { createShikiHighlighter } from '@astrojs/internal-helpers/shiki';
-import { parseMeta, buildSrcdoc, escapeAttr, escapeHtml } from './sandbox.js';
+import { parseMeta, buildSrcdoc, sandboxPrelude, escapeAttr, escapeHtml } from './sandbox.js';
 
 // One highlighter for the whole build (creating it loads grammars/themes, so
 // it's cached as a promise and shared across every entry and block).
@@ -52,9 +52,23 @@ export function remarkSandbox() {
     };
     walk(tree);
 
+    // The shared `lib` prelude is gathered across the WHOLE file first, so every
+    // figure (regardless of its position relative to the lib blocks) gets it.
+    const prelude = sandboxPrelude(found.map(({ spec, code }) => ({ ...spec, code })));
+
     await Promise.all(
       found.map(async ({ parent, index, spec, code }) => {
-        const srcdoc = escapeAttr(buildSrcdoc(spec, code));
+        // A `lib` block renders no figure — just its highlighted source under a
+        // small "lib" label, so the reader can see the shared helpers it injects.
+        if (spec.snippet) {
+          const libHtml = await highlightCode(code);
+          parent.children[index] = {
+            type: 'html',
+            value: `<figure class="sandbox sandbox-lib"><span class="sandbox-lib-tag">lib</span>${libHtml}</figure>`,
+          };
+          return;
+        }
+        const srcdoc = escapeAttr(buildSrcdoc(spec, code, prelude));
         // Only highlight + ship the source view when the author opted in with the
         // `code` flag; otherwise the figure is preview-only and we skip the work.
         const codeHtml = spec.showCode ? await highlightCode(code) : ''; // matches the site's other blocks
