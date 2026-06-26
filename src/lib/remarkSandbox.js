@@ -58,13 +58,19 @@ export function remarkSandbox() {
 
     await Promise.all(
       found.map(async ({ parent, index, spec, code }) => {
-        // A `lib` block renders no figure — just its highlighted source under a
-        // small "lib" label, so the reader can see the shared helpers it injects.
+        // A `lib` block renders no figure — just its highlighted source. It's
+        // collapsed by default into a Notion-style <details>: a clickable summary
+        // row reveals the shared helpers it injects. The summary label is the
+        // author's `lib="…"` text, or a default prompt for the bare `lib` form.
         if (spec.snippet) {
           const libHtml = await highlightCode(code);
+          const summary = spec.summary || 'Click to see the code';
           parent.children[index] = {
             type: 'html',
-            value: `<figure class="sandbox sandbox-lib"><span class="sandbox-lib-tag">lib</span>${libHtml}</figure>`,
+            value:
+              `<details class="sandbox sandbox-lib">` +
+              `<summary><span class="sandbox-lib-tag">lib</span><span class="sandbox-lib-label">${escapeHtml(summary)}</span></summary>` +
+              `${libHtml}</details>`,
           };
           return;
         }

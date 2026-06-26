@@ -593,7 +593,7 @@ a.tag-label:hover { color: var(--ink); }
   border-radius: 3px;
 }
 .prose pre {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   padding: 1rem;
   border-radius: 6px;
   overflow-x: auto;
@@ -637,14 +637,34 @@ a.tag-label:hover { color: var(--ink); }
 }
 
 /* A `lib` block (```js lib): shared helper source injected into every figure in
-   the file (remarkSandbox.js). It renders no iframe — just its highlighted source
-   with a small "lib" tag pinned in the corner so it reads as shared code, not a
-   figure. Reuses .sandbox for the column inset + position:relative. */
-.sandbox-lib > pre { margin: 0; }
+   the file (remarkSandbox.js). It renders no iframe — just its highlighted source,
+   collapsed by default into a Notion-style <details>. The <summary> is a clickable
+   row (the "lib" tag + a label) that reveals the source. The label is the author's
+   `lib="…"` text, or a default prompt. Reuses .sandbox for the column inset. */
+.sandbox-lib > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.85rem;
+  list-style: none; /* drop the default disclosure marker; we draw our own caret */
+}
+.sandbox-lib > summary::-webkit-details-marker { display: none; }
+/* A caret that rotates open — the only visual cue the row expands. */
+.sandbox-lib > summary::before {
+  content: '';
+  width: 0; height: 0;
+  border-left: 6px solid currentColor;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  transition: transform 0.15s;
+}
+.sandbox-lib[open] > summary::before { transform: rotate(90deg); }
+.sandbox-lib > summary:hover { color: var(--ink); }
+.sandbox-lib > summary:hover .sandbox-lib-tag { color: var(--ink); }
+.sandbox-lib > pre { margin: 0.6rem 0 0; }
 .sandbox-lib-tag {
-  position: absolute;
-  top: 0.4rem;
-  right: 0.4rem;
   font-size: 0.7rem;
   line-height: 1;
   text-transform: uppercase;
@@ -653,7 +673,6 @@ a.tag-label:hover { color: var(--ink); }
   border: 1px solid var(--rule);
   border-radius: 4px;
   padding: 0.25rem 0.5rem;
-  background: var(--bg);
 }
 
 /* Inline sandbox preview inside the CodeMirror source editor (sandboxPreview.js).

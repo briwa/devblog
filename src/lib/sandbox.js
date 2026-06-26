@@ -10,9 +10,9 @@
 // Append the bare token `code` (e.g. ```js d3 code) to expose a "Show code"
 // toggle on the published figure; without it the figure is preview-only.
 //
-// Append `bg=<color>` (e.g. ```js canvas bg=#111) to paint the figure's
-// background a specific color instead of inheriting the theme. The play overlay
-// (canvas figures) auto-picks a contrasting palette for the chosen background.
+// Append `bg="<color>"` (e.g. ```js canvas bg="#111") to paint the figure's
+// background a specific color instead of inheriting the theme (quotes required).
+// The play overlay (canvas figures) auto-picks a contrasting palette for it.
 //
 // WHY a fenced code block (not a custom `<sandbox>` tag): markdown preserves a
 // fence's contents *verbatim* — blank lines, `<`, `>`, `&` all survive — whereas
@@ -59,13 +59,24 @@ export const escapeHtml = (s) =>
 // Returns null if it isn't a sandbox block, so ordinary ```js blocks pass through.
 export function parseMeta(lang, meta) {
   if (lang !== 'js' && lang !== 'javascript') return null;
-  const tokens = (meta || '').trim().split(/\s+/).filter(Boolean);
+  const raw = (meta || '').trim();
+  const tokens = raw.split(/\s+/).filter(Boolean);
+  const preset = tokens.find((t) => PRESETS.has(t));
   // A `lib` block isn't a figure: it renders no iframe, just its source. Its code
   // is concatenated into EVERY figure in the same file as a shared prelude (see
   // sandboxPrelude + buildSrcdoc), so helpers/consts written once are available to
-  // all figures. Recognized before the preset check since it has no preset.
-  if (tokens.includes('lib')) return { snippet: true };
-  const preset = tokens.find((t) => PRESETS.has(t));
+  // all figures. It renders as a collapsible <details> (see remarkSandbox.js). The
+  // summary label is set ONLY by the quoted `lib="…"` form; bare `lib` — or a
+  // mistakenly unquoted `lib=foo` — falls back to the default prompt. Requiring
+  // quotes keeps `lib` and `bg` consistent and sidesteps ambiguity over spaces. The
+  // value is pulled from the RAW meta (not the whitespace-split tokens) so a summary
+  // with spaces survives. Recognized only when NO preset is present: a real preset
+  // means the block is a figure, and a stray `lib` token there is ignored rather
+  // than silently turning the figure into a snippet.
+  if (!preset && tokens.some((t) => t === 'lib' || t.startsWith('lib='))) {
+    const m = /(?:^|\s)lib="([^"]*)"/.exec(raw);
+    return { snippet: true, summary: m ? m[1] : '' };
+  }
   if (!preset) return null;
   const size = tokens.find((t) => /^\d+x\d+$/.test(t));
   const [w, h] = size ? size.split('x').map(Number) : [DEFAULT_W, DEFAULT_H];
@@ -79,13 +90,15 @@ export function parseMeta(lang, meta) {
   // rare figure that should be moving the moment it scrolls into view. No effect
   // on svg/d3, which already run on load.
   const auto = tokens.includes('auto');
-  // Optional `bg=<color>` paints the figure body. The value is a single token
-  // (no spaces), so hex (`#111`), named colors (`black`) and space-free
-  // functional forms (`rgb(20,20,20)`) all work. Restrict to a safe CSS-color
+  // Optional `bg="<color>"` paints the figure body. Quotes are REQUIRED (matching
+  // `lib="…"`); an unquoted `bg=#111` is ignored and the figure keeps the theme
+  // background, so there's no ambiguity over which forms take a value. Quoting also
+  // lets the value carry spaces (e.g. `bg="rgb(20, 20, 20)"`). hex (`#111`), named
+  // colors (`black`) and functional forms all work. Restrict to a safe CSS-color
   // charset so a stray token can't break out of the style/attribute it lands in.
-  const bgToken = tokens.find((t) => t.startsWith('bg='));
-  let bg = bgToken ? bgToken.slice(3) : '';
-  if (bg && !/^[#\w(),.%-]+$/.test(bg)) bg = '';
+  const bgMatch = /(?:^|\s)bg="([^"]*)"/.exec(raw);
+  let bg = bgMatch ? bgMatch[1] : '';
+  if (bg && !/^[#\w(),.%\s-]+$/.test(bg)) bg = '';
   return { preset, w, h, showCode, bg, auto };
 }
 
@@ -110,15 +123,16 @@ export function sandboxPrelude(blocks) {
 // double-encode. Keep this function attribute-agnostic.
 export function buildSrcdoc({ preset, w, h, bg, auto }, code, prelude = '') {
   const isCanvas = preset === 'canvas';
-  // The surface element and the bindings handed to the authored code.
+  // The surface element and the bindings handed to the authored code. The emitted
+  // boilerplate below is written TERSE on purpose — this whole string is inlined
+  // into every figure's `srcdoc`, so its comments/indentation would ship verbatim
+  // into the built HTML. The explanations therefore live out here as JS comments;
+  // only the authored `code`/`prelude` (which the author controls) keep their own
+  // formatting, so a thrown error's stack line stays meaningful.
   const surface = isCanvas ? '<canvas></canvas>' : `<svg viewBox="0 0 ${w} ${h}"></svg>`;
   const setup = isCanvas
-    ? `const canvas = document.querySelector('canvas');
-       const ctx = canvas.getContext('2d');
-       const width = canvas.width = ${w};
-       const height = canvas.height = ${h};`
-    : `const svg = document.querySelector('svg');
-       const width = ${w}, height = ${h};`;
+    ? `const canvas=document.querySelector('canvas'),ctx=canvas.getContext('2d'),width=canvas.width=${w},height=canvas.height=${h};`
+    : `const svg=document.querySelector('svg'),width=${w},height=${h};`;
   // d3 is a classic script, so it runs (and defines `d3`) before the next one.
   const lib = preset === 'd3' ? `<script src="${D3_SRC}"></script>` : '';
 
@@ -133,9 +147,7 @@ export function buildSrcdoc({ preset, w, h, bg, auto }, code, prelude = '') {
   // just like a drawn one, so the frame is already sized to center the button in.
   const deferred = isCanvas && !auto;
   const playBtn = deferred
-    ? `<button id="__play" type="button" aria-label="Run figure">` +
-      `<svg viewBox="0 0 100 100" width="30" height="30" aria-hidden="true"><polygon points="38,28 38,72 74,50" fill="currentColor"/></svg>` +
-      `</button>`
+    ? `<button id="__play" type="button" aria-label="Run figure"><svg viewBox="0 0 100 100" width="30" height="30" aria-hidden="true"><polygon points="38,28 38,72 74,50" fill="currentColor"/></svg></button>`
     : '';
   // Only canvas frames carry the play overlay, so only they need its CSS — keep
   // the svg/d3 frames free of dead rules. inset:0 + margin:auto centers the button
@@ -145,10 +157,7 @@ export function buildSrcdoc({ preset, w, h, bg, auto }, code, prelude = '') {
   // below) flips to a light fill with a dark icon so the button always contrasts.
   // The triangle is nudged right so it looks optically centered in the circle.
   const playCss = deferred
-    ? `#__play{position:absolute;inset:0;margin:auto;width:64px;height:64px;border:0;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;background:rgba(20,20,20,.55);transition:background .15s,transform .15s}
-       #__play:hover{background:rgba(20,20,20,.8);transform:scale(1.06)}
-       #__play.on-dark{color:#111;background:rgba(245,245,245,.6)}
-       #__play.on-dark:hover{background:rgba(245,245,245,.85)}`
+    ? `#__play{position:absolute;inset:0;margin:auto;width:64px;height:64px;border:0;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;background:rgba(20,20,20,.55);transition:background .15s,transform .15s}#__play:hover{background:rgba(20,20,20,.8);transform:scale(1.06)}#__play.on-dark{color:#111;background:rgba(245,245,245,.6)}#__play.on-dark:hover{background:rgba(245,245,245,.85)}`
     : '';
 
   // A custom figure background, if requested. Painted on the body so it sits
@@ -156,47 +165,33 @@ export function buildSrcdoc({ preset, w, h, bg, auto }, code, prelude = '') {
   // frame shows the theme background (.sandbox-frame's var(--bg)) as before.
   const bgCss = bg ? `body{background:${bg}}` : '';
 
-  const doc = `<!doctype html><html><head><meta charset="utf-8"><style>
-    html,body{margin:0}
-    ${bgCss}
-    canvas,svg{display:block;max-width:100%;height:auto}
-    .err{color:#c0392b;white-space:pre-wrap;font:12px/1.5 ui-monospace,monospace;padding:.75rem}
-    ${playCss}
-  </style></head><body>${surface}${playBtn}${lib}<script>
-    ${setup}
-    // A self-cancelling rAF helper so authored animation loops are easy to write
-    // and die with the frame: loop(fn) runs fn every frame, returns a stop().
-    const loop = (fn) => { let id; const t = (ts) => { fn(ts); id = requestAnimationFrame(t); }; id = requestAnimationFrame(t); return () => cancelAnimationFrame(id); };
-    // Report our content height to the parent so it can size the (otherwise
-    // unsized) iframe to fit, and re-report whenever the layout reflows.
-    const report = () => parent.postMessage({ __sandboxHeight: document.documentElement.scrollHeight }, '*');
-    new ResizeObserver(report).observe(document.documentElement);
-    // The authored code, wrapped so a throw renders its stack into the frame
-    // instead of failing silently. Deferred (canvas) figures call this on click;
-    // others on load. The shared \`lib\` prelude runs first, inside the same
-    // try/catch (so a broken helper surfaces in the frame too) and the same scope
-    // (so its consts/functions are visible to the figure's own code below).
-    const run = () => { try { ${prelude}
-${code} } catch (e) { document.body.innerHTML = '<pre class=err>' + (e && e.stack || e) + '</pre>'; } report(); };
-    ${deferred
-      ? `const __play = document.getElementById('__play');
-         // Give the play button a palette that contrasts with whatever the figure
-         // actually renders behind it: read the body's COMPUTED background, and if
-         // it's dark (and opaque) switch to the light-on-dark variant. Reading the
-         // computed value means this works for any CSS color the author writes —
-         // named, hex, rgb(), hsl() — without parsing color syntax ourselves. A
-         // transparent body (no bg= given) keeps the default, which already reads
-         // on the theme background.
-         const __c = getComputedStyle(document.body).backgroundColor.match(/[\\d.]+/g);
-         if (__c && (__c.length < 4 || +__c[3] > 0) && (0.299*__c[0] + 0.587*__c[1] + 0.114*__c[2]) < 128) {
-           __play.classList.add('on-dark');
-         }
-         __play.addEventListener('click', () => { __play.remove(); run(); });
-         report();`
-      : `run();`}
-  </script></body></html>`;
+  const css = `html,body{margin:0}${bgCss}canvas,svg{display:block;max-width:100%;height:auto}.err{color:#c0392b;white-space:pre-wrap;font:12px/1.5 ui-monospace,monospace;padding:.75rem}${playCss}`;
 
-  return doc;
+  // loop(): a self-cancelling rAF helper so authored animation loops are easy to
+  //   write and die with the frame — runs fn every frame, returns a stop().
+  // report(): tells the parent our content height so it can size the (otherwise
+  //   unsized) iframe; a ResizeObserver re-reports on every reflow.
+  // run(): the authored prelude + code, wrapped so a throw renders its stack into
+  //   the frame. The shared `lib` prelude runs first, in the same try/catch (a
+  //   broken helper surfaces too) and the same scope (its consts are visible to the
+  //   figure's code). prelude/code sit on their own lines so a trailing `//` in the
+  //   author's source can't comment out the closing brace.
+  const script =
+    setup +
+    `const loop=(fn)=>{let id;const t=(ts)=>{fn(ts);id=requestAnimationFrame(t)};id=requestAnimationFrame(t);return ()=>cancelAnimationFrame(id)};` +
+    `const report=()=>parent.postMessage({__sandboxHeight:document.documentElement.scrollHeight},'*');` +
+    `new ResizeObserver(report).observe(document.documentElement);` +
+    `const run=()=>{try{\n${prelude}\n${code}\n}catch(e){document.body.innerHTML='<pre class=err>'+(e&&e.stack||e)+'</pre>'}report()};` +
+    // Deferred (canvas) figures wait for a click; others run on load. For the
+    // deferred case, give the play button a palette that contrasts with whatever
+    // the figure renders behind it: read the body's COMPUTED background and switch
+    // to the light-on-dark variant when it's dark and opaque. Reading the computed
+    // value works for any CSS color (named/hex/rgb/hsl) without parsing it.
+    (deferred
+      ? `const __play=document.getElementById('__play'),__c=getComputedStyle(document.body).backgroundColor.match(/[\\d.]+/g);if(__c&&(__c.length<4||+__c[3]>0)&&(0.299*__c[0]+0.587*__c[1]+0.114*__c[2])<128)__play.classList.add('on-dark');__play.addEventListener('click',()=>{__play.remove();run()});report();`
+      : `run();`);
+
+  return `<!doctype html><html><head><meta charset="utf-8"><style>${css}</style></head><body>${surface}${playBtn}${lib}<script>${script}</script></body></html>`;
 }
 
 // Scan raw markdown for sandbox fences, returning, in document order,

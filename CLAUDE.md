@@ -144,10 +144,12 @@ The published figure is **preview-only by default**; append the bare token `code
 it. (The in-editor preview always offers its own toggle regardless — you're editing
 the source there.)
 
-Append `bg=<color>` (e.g. ` ```js canvas bg=#111 `) to paint the figure background
-a specific color instead of inheriting the theme. The value is a single token, so
-hex (`#111`), named colors (`black`) and space-free functional forms
-(`rgb(20,20,20)`) all work. Canvas figures' centered play button reads its
+Append `bg="<color>"` (e.g. ` ```js canvas bg="#111" `) to paint the figure
+background a specific color instead of inheriting the theme. **The quotes are
+required** — an unquoted `bg=#111` is ignored and the figure keeps the theme
+background (this keeps `bg` and `lib` consistent; see below). Quoting also lets the
+value carry spaces, so hex (`#111`), named colors (`black`) and functional forms
+(`rgb(20, 20, 20)`) all work. Canvas figures' centered play button reads its
 rendered background at runtime and flips to a light-on-dark palette over a dark
 background, so the button always contrasts.
 
@@ -156,10 +158,14 @@ on click (so animations don't burn rAF until asked). Append the bare token `auto
 (e.g. ` ```js canvas auto `) to make it run on load instead — no play button.
 `auto` has no effect on svg/d3, which already run on load.
 
-A ` ```js lib ` block is **shared code, not a figure**: it renders no iframe (just
-its highlighted source under a small "lib" tag), and its code is concatenated — in
-document order — into *every* figure in the same file as a prelude, so helpers and
-consts written once are in scope for all figures. This is a **build-time text
+A ` ```js lib ` block is **shared code, not a figure**: it renders no iframe — just
+its highlighted source inside a collapsible, Notion-style `<details>` (a "lib" tag +
+a clickable summary that reveals the code). The summary label defaults to a generic
+prompt; set your own with the quoted `lib="<summary>"` form (e.g.
+` ```js lib="Shared orbit helpers" `). **Quotes are required** — a bare `lib` or an
+unquoted `lib=foo` just uses the default label (matching `bg`, above). Its code is
+concatenated — in document order — into *every* figure in the same file as a
+prelude, so helpers and consts written once are in scope for all figures. This is a **build-time text
 composition**, not runtime sharing: the sandbox iframes are isolated null-origin
 realms with no shared `window`, so `lib` source is simply inlined into each frame
 (each gets its own private copy — written once by the author). The prelude runs
