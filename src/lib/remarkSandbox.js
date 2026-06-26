@@ -14,20 +14,21 @@
 // raw HTML before rehype runs, and Shiki consumes the fence `meta` we need.
 
 import { createShikiHighlighter } from '@astrojs/internal-helpers/shiki';
-import { parseMeta, buildSrcdoc, sandboxPrelude, sandboxExternals, safeUrl, escapeAttr, escapeHtml } from './sandbox.js';
+import { parseMeta, buildSrcdoc, buildVueSrcdoc, sandboxPrelude, sandboxExternals, sandboxVueComponents, safeUrl, escapeAttr, escapeHtml } from './sandbox.js';
 
 // One highlighter for the whole build (creating it loads grammars/themes, so
 // it's cached as a promise and shared across every entry and block).
 let highlighterPromise;
 const getHighlighter = () => (highlighterPromise ??= createShikiHighlighter());
 
-// Highlight `code` as JS into Astro's standard `<pre class="astro-code …">`
-// markup. Falls back to a plain (escaped) <pre> if Shiki ever fails, so a build
-// never dies over a figure's source view.
-async function highlightCode(code) {
+// Highlight `code` into Astro's standard `<pre class="astro-code …">` markup,
+// defaulting to JS (`vue` source passes lang:'vue'). Falls back to a plain
+// (escaped) <pre> if Shiki ever fails — including if the grammar isn't loaded —
+// so a build never dies over a figure's source view.
+async function highlightCode(code, lang = 'js') {
   try {
     const hl = await getHighlighter();
-    return await hl.codeToHtml(code, 'js');
+    return await hl.codeToHtml(code, lang);
   } catch {
     return `<pre class="astro-code"><code>${escapeHtml(code)}</code></pre>`;
   }
@@ -100,14 +101,35 @@ export function remarkSandbox() {
           };
           return;
         }
+        // A `vue lib="Name"` block renders like `lib` — collapsed source in a
+        // <details> — but its source is an SFC (highlighted as vue) and the tag
+        // marks it as a shared component. It's injected into vue figures of its
+        // group by sandboxVueComponents, not here.
+        if (spec.vueLib) {
+          const libHtml = await highlightCode(code, 'vue');
+          const summary = spec.summary || 'Vue component';
+          parent.children[index] = {
+            type: 'html',
+            value:
+              `<details class="sandbox sandbox-lib">` +
+              `<summary><span class="sandbox-lib-tag">vue lib</span><span class="sandbox-lib-label">${escapeHtml(summary)}</span></summary>` +
+              `${libHtml}</details>`,
+          };
+          return;
+        }
         // Pull only this figure's group (by id) of shared lib source + external
         // scripts, so a block tagged `id="x"` reaches only figures tagged `id="x"`.
-        const prelude = sandboxPrelude(allBlocks, spec.id);
+        // A `vue` figure compiles its SFC in-frame (buildVueSrcdoc) and pulls its
+        // group's `vue lib` components; a `js` figure uses the inlined-prelude path.
         const externals = sandboxExternals(allBlocks, spec.id);
-        const srcdoc = escapeAttr(buildSrcdoc(spec, code, prelude, externals));
+        const srcdoc = escapeAttr(
+          spec.vue
+            ? buildVueSrcdoc(spec, code, { externals, components: sandboxVueComponents(allBlocks, spec.id) })
+            : buildSrcdoc(spec, code, sandboxPrelude(allBlocks, spec.id), externals)
+        );
         // Only highlight + ship the source view when the author opted in with the
         // `code` flag; otherwise the figure is preview-only and we skip the work.
-        const codeHtml = spec.showCode ? await highlightCode(code) : ''; // matches the site's other blocks
+        const codeHtml = spec.showCode ? await highlightCode(code, spec.vue ? 'vue' : 'js') : ''; // matches the site's other blocks
         // Preview (iframe), plus — only when opted in — the highlighted source and
         // a vanilla toggle. Sizing and the preview↔code toggle are wired up once on
         // the entry page (src/pages/posts/[slug]/index.astro).

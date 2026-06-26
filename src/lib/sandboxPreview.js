@@ -16,7 +16,7 @@
 
 import { Decoration, EditorView, WidgetType, ViewPlugin } from "@codemirror/view";
 import { StateField, StateEffect } from "@codemirror/state";
-import { buildSrcdoc, findSandboxBlocks, sandboxPrelude, sandboxExternals } from "./sandbox.js";
+import { buildSrcdoc, buildVueSrcdoc, findSandboxBlocks, sandboxPrelude, sandboxExternals, sandboxVueComponents } from "./sandbox.js";
 
 // Toggle block #i between preview and code. Carries the block's index.
 const togglePreview = StateEffect.define();
@@ -37,29 +37,28 @@ const previewField = StateField.define({
   },
 });
 
-// The running figure that replaces a block in preview mode.
+// The running figure that replaces a block in preview mode. It's handed a
+// pre-built `srcdoc` string (the caller picks buildSrcdoc vs buildVueSrcdoc and
+// folds in the block's group prelude/externals/components) — so the widget stays
+// agnostic to figure type, and comparing the srcdoc IS the rebuild test.
 class PreviewWidget extends WidgetType {
-  constructor(block, index, prelude, externals) { super(); this.block = block; this.index = index; this.prelude = prelude; this.externals = externals || []; }
-  // Reuse the existing DOM (don't reload the iframe) unless the code, preset,
-  // size, index, shared `lib` prelude, or `external-lib` URLs actually changed —
-  // so editing elsewhere never restarts a running animation, but editing a lib or
-  // external-lib block (which this figure pulls in) correctly rebuilds it.
-  eq(o) {
-    const a = this.block, b = o.block;
-    return this.index === o.index && a.code === b.code && a.preset === b.preset && a.w === b.w && a.h === b.h
-      && this.prelude === o.prelude && this.externals.join("\n") === o.externals.join("\n");
-  }
+  constructor(srcdoc, index, preset) { super(); this.srcdoc = srcdoc; this.index = index; this.preset = preset; }
+  // Reuse the existing DOM (don't reload the iframe) unless the rendered document
+  // actually changed — so editing elsewhere never restarts a running animation,
+  // but editing this figure (or a lib/external/vue-component block it pulls in,
+  // which changes the srcdoc) correctly rebuilds it.
+  eq(o) { return this.index === o.index && this.preset === o.preset && this.srcdoc === o.srcdoc; }
   toDOM(view) {
     const fig = document.createElement("figure");
     fig.className = "sandbox cm-sandbox";
-    fig.dataset.preset = this.block.preset;
+    fig.dataset.preset = this.preset;
     const stage = document.createElement("div");
     stage.className = "sandbox-stage";
     const iframe = document.createElement("iframe");
     iframe.className = "sandbox-frame";
     iframe.setAttribute("sandbox", "allow-scripts");
-    iframe.title = `live ${this.block.preset} preview`;
-    iframe.srcdoc = buildSrcdoc(this.block, this.block.code, this.prelude, this.externals);
+    iframe.title = `live ${this.preset} preview`;
+    iframe.srcdoc = this.srcdoc;
     stage.appendChild(iframe);
     const btn = document.createElement("button");
     btn.type = "button";
@@ -127,14 +126,19 @@ function buildDecorations(state) {
       ranges.push(Decoration.widget({ widget: new LibBar(i), side: -1, block: true }).range(b.from));
     } else if (b.external) {
       ranges.push(Decoration.widget({ widget: new LibBar(i, "external-lib"), side: -1, block: true }).range(b.from));
+    } else if (b.vueLib) {
+      ranges.push(Decoration.widget({ widget: new LibBar(i, "vue lib"), side: -1, block: true }).range(b.from));
     } else if (previews.has(i)) {
-      // This figure's own group (by id) of shared lib source + external scripts,
-      // recomputed per block so the preview matches the published page exactly.
-      const prelude = sandboxPrelude(blocks, b.id);
+      // This figure's own group (by id): build its srcdoc exactly as the published
+      // page would — vue figures compile their SFC + group components in-frame, js
+      // figures inline the lib prelude. Recomputed per block so previews match.
       const externals = sandboxExternals(blocks, b.id);
-      ranges.push(Decoration.replace({ widget: new PreviewWidget(b, i, prelude, externals), block: true }).range(b.from, b.to));
+      const srcdoc = b.vue
+        ? buildVueSrcdoc(b, b.code, { externals, components: sandboxVueComponents(blocks, b.id) })
+        : buildSrcdoc(b, b.code, sandboxPrelude(blocks, b.id), externals);
+      ranges.push(Decoration.replace({ widget: new PreviewWidget(srcdoc, i, b.preset), block: true }).range(b.from, b.to));
     } else {
-      ranges.push(Decoration.widget({ widget: new CodeBar(b.preset, i), side: -1, block: true }).range(b.from));
+      ranges.push(Decoration.widget({ widget: new CodeBar(b.vue ? "vue" : b.preset, i), side: -1, block: true }).range(b.from));
     }
   });
   return Decoration.set(ranges, true);

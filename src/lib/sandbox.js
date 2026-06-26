@@ -43,6 +43,14 @@ const PRESETS = new Set(['canvas', 'svg', 'root']);
 const DEFAULT_W = 640;
 const DEFAULT_H = 360;
 
+// `vue` figures load these inside the frame: the Vue 3 RUNTIME global build (no
+// template compiler — vue3-sfc-loader does the compiling) and the loader itself,
+// which compiles `.vue` SFC source in-browser. Auto-injected (unlike a generic
+// `external-lib`) because a `vue` block is meaningless without them — they're the
+// language's runtime, not an optional library choice. See buildVueSrcdoc.
+const VUE_SRC = 'https://cdn.jsdelivr.net/npm/vue@3/dist/vue.runtime.global.prod.js';
+const SFC_LOADER_SRC = 'https://cdn.jsdelivr.net/npm/vue3-sfc-loader@0.9/dist/vue3-sfc-loader.js';
+
 // Escape text for use inside a double-quoted HTML attribute (the `srcdoc`).
 // We escape `&` and `"` only: that's sufficient to reproduce the inner document
 // faithfully once the browser entity-decodes the attribute. `<`/`>` are left as
@@ -60,7 +68,10 @@ export const escapeHtml = (s) =>
 // Parse a fence info string's meta (everything after `js`) into a preset + size.
 // Returns null if it isn't a sandbox block, so ordinary ```js blocks pass through.
 export function parseMeta(lang, meta) {
-  if (lang !== 'js' && lang !== 'javascript') return null;
+  // `vue` is a second language (alongside `js`): the fence body is Vue 3 Single-
+  // File-Component source, compiled in-frame by vue3-sfc-loader (see buildVueSrcdoc).
+  const isVue = lang === 'vue';
+  if (lang !== 'js' && lang !== 'javascript' && !isVue) return null;
   const raw = (meta || '').trim();
   const tokens = raw.split(/\s+/).filter(Boolean);
   const preset = tokens.find((t) => PRESETS.has(t));
@@ -75,6 +86,30 @@ export function parseMeta(lang, meta) {
   const idMatch = /(?:^|\s)id="([^"]*)"/.exec(raw);
   let id = idMatch ? idMatch[1] : '';
   if (id && !/^[\w-]+$/.test(id)) id = '';
+
+  if (isVue) {
+    // A `vue lib="Name"` block is a shared COMPONENT, not a figure: it renders no
+    // iframe (just its highlighted source in a <details>, like `lib`), and its SFC
+    // is registered as global component `Name` in every vue figure of its group
+    // (by id). The quoted value is both the registered name and the <details>
+    // label; require a valid component identifier or it can't be registered.
+    const libMatch = /(?:^|\s)lib="([^"]*)"/.exec(raw);
+    if (libMatch || tokens.some((t) => t === 'lib' || t.startsWith('lib='))) {
+      let name = libMatch ? libMatch[1] : '';
+      if (name && !/^[A-Za-z][\w-]*$/.test(name)) name = '';
+      return { vue: true, vueLib: true, componentName: name, summary: name, id };
+    }
+    // Otherwise it's a vue figure: the SFC mounts into the `#root` div. Reuses the
+    // `root` surface (sizing/scaling), the `WxH`/`bg`/`code` tokens, and the `id`
+    // group. No play-button deferral — a Vue app is interactive on load, and the
+    // loader is async, so it always runs on load (no `auto` needed).
+    const vsize = tokens.find((t) => /^\d+x\d+$/.test(t));
+    const [vw, vh] = vsize ? vsize.split('x').map(Number) : [DEFAULT_W, DEFAULT_H];
+    const vbgMatch = /(?:^|\s)bg="([^"]*)"/.exec(raw);
+    let vbg = vbgMatch ? vbgMatch[1] : '';
+    if (vbg && !/^[#\w(),.%\s-]+$/.test(vbg)) vbg = '';
+    return { vue: true, preset: 'root', w: vw, h: vh, showCode: tokens.includes('code'), bg: vbg, id };
+  }
   // A `lib` block isn't a figure: it renders no iframe, just its source. Its code
   // is concatenated into EVERY figure in the same file as a shared prelude (see
   // sandboxPrelude + buildSrcdoc), so helpers/consts written once are available to
@@ -172,6 +207,69 @@ export function sandboxExternals(blocks, groupId = '') {
     .flatMap((b) => (b.code || '').split(/\s+/))
     .map(safeUrl)
     .filter(Boolean);
+}
+
+// Collect one group's `vue lib="Name"` components — { name, code } in document
+// order, only blocks whose id matches the consuming vue figure's group (default
+// ""). Each is served to vue3-sfc-loader as a virtual `/<Name>.vue` file and
+// registered as global component `Name` (buildVueSrcdoc), so a figure's template
+// can use `<Name>` / `<name>` without importing. Named, valid components only.
+export function sandboxVueComponents(blocks, groupId = '') {
+  return (blocks || [])
+    .filter((b) => b.vueLib && b.componentName && (b.id || '') === (groupId || ''))
+    .map((b) => ({ name: b.componentName, code: b.code }));
+}
+
+// Escape a string for embedding inside a JS template literal (backtick string).
+// Used to inline SFC source into the frame's script as data for the loader: we
+// escape `\`, backtick and `${` so the source can't break out of or interpolate
+// into the literal, and `</script>` (case-insensitively) so it can't close the
+// frame's <script> wrapper — `<\/script>` reads back as `</script>` at runtime,
+// which is what the loader must see, while the HTML parser never sees the token.
+export const escapeTemplate = (s) =>
+  '`' +
+  String(s == null ? '' : s)
+    .replace(/\\/g, '\\\\')
+    .replace(/`/g, '\\`')
+    .replace(/\$\{/g, '\\${')
+    .replace(/<\/script>/gi, '<\\/script>') +
+  '`';
+
+// Build the inner document for a `vue` figure: load Vue + vue3-sfc-loader, hand the
+// loader the SFC source (main + every group `vue lib` component) as virtual files,
+// register the lib components globally, then mount the main SFC into `#root`. The
+// loader compiles `<template>`/`<script setup>`/`<style scoped>` in-frame, so full
+// SFC syntax works with no build step. `externals` (the group's `external-lib`
+// URLs) are injected too, before Vue, so a component can use other CDN globals.
+// Async (the loader returns promises); a throw renders its stack into the frame.
+export function buildVueSrcdoc({ w, h, bg }, code, { externals = [], components = [] } = {}) {
+  const ext = (externals || []).map((u) => `<script src="${u}"></script>`).join('');
+  const bgCss = bg ? `body{background:${bg}}` : '';
+  const rootCss = `#root{position:relative;width:${w}px;height:${h}px;max-width:100%}`;
+  const css = `html,body{margin:0}${bgCss}${rootCss}canvas,svg{display:block;max-width:100%;height:auto}.err{color:#c0392b;white-space:pre-wrap;font:12px/1.5 ui-monospace,monospace;padding:.75rem}`;
+
+  // Virtual filesystem the loader reads from: each group component as /<Name>.vue
+  // plus the figure's own SFC as /__main__.vue. Sources are embedded as template
+  // literals (escapeTemplate) so any `</script>`/backticks inside survive.
+  const files = [
+    ...components.map((c) => `${JSON.stringify('/' + c.name + '.vue')}:${escapeTemplate(c.code)}`),
+    `${JSON.stringify('/__main__.vue')}:${escapeTemplate(code)}`,
+  ].join(',');
+  // Register each group component globally before mount, so templates can use it.
+  const regs = components
+    .map((c) => `app.component(${JSON.stringify(c.name)},await loadModule(${JSON.stringify('/' + c.name + '.vue')},opts));`)
+    .join('');
+
+  const script =
+    `const root=document.querySelector('#root');` +
+    `const report=()=>parent.postMessage({__sandboxHeight:document.documentElement.scrollHeight},'*');` +
+    `new ResizeObserver(report).observe(document.documentElement);` +
+    `const __files={${files}};` +
+    `const opts={moduleCache:{vue:Vue},getFile(u){const f=__files[u];if(f==null)throw new Error('file not found: '+u);return Promise.resolve(f)},addStyle(t){const s=document.createElement('style');s.textContent=t;document.head.appendChild(s)}};` +
+    `const {loadModule}=window['vue3-sfc-loader'];` +
+    `(async()=>{try{const app=Vue.createApp(await loadModule('/__main__.vue',opts));${regs}app.mount(root)}catch(e){document.body.innerHTML='<pre class=err>'+(e&&e.stack||e)+'</pre>'}report()})();`;
+
+  return `<!doctype html><html><head><meta charset="utf-8"><style>${css}</style></head><body><div id="root"></div>${ext}<script src="${VUE_SRC}"></script><script src="${SFC_LOADER_SRC}"></script><script>${script}</script></body></html>`;
 }
 
 // Build the inner document for one figure. `code` is the author's verbatim JS;

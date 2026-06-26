@@ -183,11 +183,10 @@ frame).
 
 A ` ```js external-lib ` block is **shared code from a URL, not a figure** — the
 remote counterpart of `lib`. Its body is one or more `https://` URLs (whitespace-
-or newline-separated); each is injected as a classic ` <script src="…"> ` into
-*every* figure in the file (in document order, before the figure's own code), the
-same way the `d3` preset injects its CDN script — so a library hosted on a CDN
-(jsDelivr, a raw-gist proxy like `cdn.jsdelivr.net/gist/…`, unpkg, …) is in scope
-for all figures. Set a summary label with the quoted `external-lib="<summary>"`
+or newline-separated); each is injected as a classic ` <script src="…"> ` into the
+figures of its group (in document order, before the figure's own code) — so a
+library hosted on a CDN (jsDelivr, a raw-gist proxy like `cdn.jsdelivr.net/gist/…`,
+unpkg, …) is in scope. Set a summary label with the quoted `external-lib="<summary>"`
 form (matching `lib`/`bg`). It renders as the same collapsible `<details>` as
 `lib`, but reveals the **URL(s) as links** rather than highlighted source. URLs
 are validated (`safeUrl` in `src/lib/sandbox.js`): **https only**, and any char
@@ -199,6 +198,43 @@ URL staying reachable and won't run offline — prefer an inlined `lib` block fo
 code you can paste, and `external-lib` only for a real third-party library. Each
 frame is a null-origin sandbox, so the script runs with no access to the parent
 page or `/api/*`.
+
+### Groups: `id="<group>"`
+
+By default `lib`/`external-lib` blocks are shared with *every* figure in the file
+(the default group, `""`). Add a quoted `id="<group>"` token to **partition** a
+file: a figure receives only the `lib`/`external-lib`/`vue lib` blocks that carry
+the **same** `id`. It's a pure equality partition — no "global applies to all"
+tier, so an `id="x"` figure is fully isolated from default-group blocks. Use it to
+scope a heavy `external-lib` (e.g. Vue) to the one figure that needs it instead of
+injecting it into every frame. The id charset is `[\w-]+`; a malformed value falls
+back to the default group. (`sandboxPrelude`/`sandboxExternals`/`sandboxVueComponents`
+in `src/lib/sandbox.js` do the filtering.)
+
+### Vue figures: ` ```vue `
+
+`vue` is a second fence *language* (alongside `js`): the body is Vue 3 Single-File-
+Component source, compiled **in the frame** by `vue3-sfc-loader` (CDN). Full SFC
+syntax works with no build step — `<script setup>`, `<style scoped>`, the lot.
+
+````md
+```vue root 640x320        → mount the SFC into a sized #root div
+```vue lib="MyComponent"   → a shared component (renders as a <details>, like `lib`)
+````
+
+A ` ```vue root ` figure mounts its SFC into the `#root` div (reusing the `root`
+surface's sizing/scaling and the `WxH`/`bg`/`code`/`id` tokens; no play-button
+deferral — a Vue app is interactive on load). A ` ```vue lib="Name" ` block is a
+shared **component**: it renders no iframe (just its highlighted source in a
+`<details>`, like `lib`), and is registered as global component `Name` in every
+`vue` figure of its **group** (by `id`), so a figure's template can use `<Name>` /
+`<name>` without importing. The Vue runtime + the loader are **auto-injected** (a
+`vue` block can't function without them — they're the language's runtime, not an
+optional library); any `external-lib` URLs in the group are injected too, before
+Vue. Heavier than a `js` figure (each frame fetches Vue + the loader and compiles
+the SFC in-browser), so a `vue` figure depends on those CDNs to render at all.
+`buildVueSrcdoc` in `src/lib/sandbox.js` builds the frame; the SFC source is
+embedded via `escapeTemplate` (which neutralizes any inner `</script>`).
 
 **What's in scope for the authored code** (set up by `buildSrcdoc` before your
 code runs; size defaults to `640x360`):
