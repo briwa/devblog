@@ -599,7 +599,7 @@ a.tag-label:hover { color: var(--ink); }
   overflow-x: auto;
 } /* Astro/Shiki sets the pre's dark background inline */
 
-/* Interactive figure sandboxes (```js canvas|svg|d3 → remarkSandbox). The figure
+/* Interactive figure sandboxes (```js canvas|svg → remarkSandbox). The figure
    holds a live <iframe> preview and the source; data-mode picks which is shown.
    The iframe's height is set by JS (the frame reports its content height); width
    is fluid so figures track the prose column. */
@@ -674,6 +674,21 @@ a.tag-label:hover { color: var(--ink); }
   border-radius: 4px;
   padding: 0.25rem 0.5rem;
 }
+
+/* An `external-lib` block (```js external-lib): reuses the .sandbox-lib <details>
+   shell, but reveals the injected URL(s) as links rather than highlighted code. */
+.sandbox-external-urls {
+  margin: 0.6rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.85rem;
+}
+.sandbox-external-urls a { word-break: break-all; }
+/* A URL that failed validation (not https / unsafe chars): shown verbatim so the
+   author sees their typo, muted to read as inert rather than a working link. */
+.sandbox-external-bad { color: var(--muted); word-break: break-all; }
 
 /* Inline sandbox preview inside the CodeMirror source editor (sandboxPreview.js).
    A block in preview mode is a .cm-sandbox figure (reuses .sandbox); a block in

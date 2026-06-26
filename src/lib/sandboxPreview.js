@@ -1,4 +1,4 @@
-// CodeMirror extension: recognize ```js canvas|svg|d3 fences in the source
+// CodeMirror extension: recognize ```js canvas|svg fences in the source
 // editor and give each an inline "Show preview / Show code" toggle — the same
 // toggle the published page has, but live inside the editor.
 //
@@ -16,7 +16,7 @@
 
 import { Decoration, EditorView, WidgetType, ViewPlugin } from "@codemirror/view";
 import { StateField, StateEffect } from "@codemirror/state";
-import { buildSrcdoc, findSandboxBlocks, sandboxPrelude } from "./sandbox.js";
+import { buildSrcdoc, findSandboxBlocks, sandboxPrelude, sandboxExternals } from "./sandbox.js";
 
 // Toggle block #i between preview and code. Carries the block's index.
 const togglePreview = StateEffect.define();
@@ -39,14 +39,15 @@ const previewField = StateField.define({
 
 // The running figure that replaces a block in preview mode.
 class PreviewWidget extends WidgetType {
-  constructor(block, index, prelude) { super(); this.block = block; this.index = index; this.prelude = prelude; }
+  constructor(block, index, prelude, externals) { super(); this.block = block; this.index = index; this.prelude = prelude; this.externals = externals || []; }
   // Reuse the existing DOM (don't reload the iframe) unless the code, preset,
-  // size, index, or shared `lib` prelude actually changed — so editing elsewhere
-  // never restarts a running animation, but editing a lib block (which this
-  // figure inlines) correctly rebuilds it.
+  // size, index, shared `lib` prelude, or `external-lib` URLs actually changed —
+  // so editing elsewhere never restarts a running animation, but editing a lib or
+  // external-lib block (which this figure pulls in) correctly rebuilds it.
   eq(o) {
     const a = this.block, b = o.block;
-    return this.index === o.index && a.code === b.code && a.preset === b.preset && a.w === b.w && a.h === b.h && this.prelude === o.prelude;
+    return this.index === o.index && a.code === b.code && a.preset === b.preset && a.w === b.w && a.h === b.h
+      && this.prelude === o.prelude && this.externals.join("\n") === o.externals.join("\n");
   }
   toDOM(view) {
     const fig = document.createElement("figure");
@@ -58,7 +59,7 @@ class PreviewWidget extends WidgetType {
     iframe.className = "sandbox-frame";
     iframe.setAttribute("sandbox", "allow-scripts");
     iframe.title = `live ${this.block.preset} preview`;
-    iframe.srcdoc = buildSrcdoc(this.block, this.block.code, this.prelude);
+    iframe.srcdoc = buildSrcdoc(this.block, this.block.code, this.prelude, this.externals);
     stage.appendChild(iframe);
     const btn = document.createElement("button");
     btn.type = "button";
@@ -95,18 +96,19 @@ class CodeBar extends WidgetType {
   ignoreEvent() { return true; }
 }
 
-// A `lib` block has no preview to flip to — it just feeds shared code into the
-// figures. So it stays editable, with a non-interactive "lib" tag above it (no
-// "Show preview" button) to mark what it is.
+// A `lib` (or `external-lib`) block has no preview to flip to — it just feeds
+// shared code / external scripts into the figures. So it stays editable, with a
+// non-interactive tag above it (no "Show preview" button) marking what it is.
+// The label distinguishes the two ("lib" vs "external-lib").
 class LibBar extends WidgetType {
-  constructor(index) { super(); this.index = index; }
-  eq(o) { return o.index === this.index; }
+  constructor(index, label = "lib") { super(); this.index = index; this.label = label; }
+  eq(o) { return o.index === this.index && o.label === this.label; }
   toDOM() {
     const bar = document.createElement("div");
     bar.className = "cm-sandbox-bar";
     const tag = document.createElement("span");
     tag.className = "cm-sandbox-tag";
-    tag.textContent = "lib";
+    tag.textContent = this.label;
     bar.append(tag);
     return bar;
   }
@@ -116,9 +118,6 @@ class LibBar extends WidgetType {
 function buildDecorations(state) {
   const previews = state.field(previewField);
   const blocks = findSandboxBlocks(state.doc.toString());
-  // Shared prelude across the whole document, so a previewed figure inlines the
-  // same lib code the published page would (recomputed on every doc change).
-  const prelude = sandboxPrelude(blocks);
   const ranges = [];
   blocks.forEach((b, i) => {
     // Only decorate a *closed* block; an unterminated fence being typed would
@@ -126,8 +125,14 @@ function buildDecorations(state) {
     if (!b.closed) return;
     if (b.snippet) {
       ranges.push(Decoration.widget({ widget: new LibBar(i), side: -1, block: true }).range(b.from));
+    } else if (b.external) {
+      ranges.push(Decoration.widget({ widget: new LibBar(i, "external-lib"), side: -1, block: true }).range(b.from));
     } else if (previews.has(i)) {
-      ranges.push(Decoration.replace({ widget: new PreviewWidget(b, i, prelude), block: true }).range(b.from, b.to));
+      // This figure's own group (by id) of shared lib source + external scripts,
+      // recomputed per block so the preview matches the published page exactly.
+      const prelude = sandboxPrelude(blocks, b.id);
+      const externals = sandboxExternals(blocks, b.id);
+      ranges.push(Decoration.replace({ widget: new PreviewWidget(b, i, prelude, externals), block: true }).range(b.from, b.to));
     } else {
       ranges.push(Decoration.widget({ widget: new CodeBar(b.preset, i), side: -1, block: true }).range(b.from));
     }

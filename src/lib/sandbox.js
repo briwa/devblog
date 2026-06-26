@@ -4,10 +4,18 @@
 // `WxH` size) is turned into a live, runnable figure embedded in the post:
 //
 //     ```js canvas        → 2D canvas, exposes `canvas`, `ctx`, `width`, `height`
-//     ```js svg           → an <svg> root, exposes `svg`, `width`, `height`
-//     ```js d3 800x500    → an <svg> root + the d3 v7 global, custom size
+//     ```js svg 800x500   → an <svg> root, exposes `svg`, `width`, `height`
+//     ```js root          → a sized <div id="root">, exposes `root`, `width`, `height`
 //
-// Append the bare token `code` (e.g. ```js d3 code) to expose a "Show code"
+// The `root` preset is for libraries that want to OWN a container element (Konva,
+// Pts, Pixi, …): they take `root` (the element) or `'#root'` (the selector) and
+// append their own canvas/svg into it — no per-figure "make a div" boilerplate.
+//
+// Need a library like d3? Load it with an `external-lib` block (see parseMeta) —
+// e.g. a CDN URL for d3 — and use it from an `svg` or `root` figure. There's no
+// built-in library preset: the sandbox stays dependency-free and any CDN works.
+//
+// Append the bare token `code` (e.g. ```js svg code) to expose a "Show code"
 // toggle on the published figure; without it the figure is preview-only.
 //
 // Append `bg="<color>"` (e.g. ```js canvas bg="#111") to paint the figure's
@@ -31,15 +39,9 @@
 // Shiki runs — Shiki then only highlights the ordinary code blocks we leave alone.
 
 // Which presets exist, and what each pre-exposes to the authored code.
-const PRESETS = new Set(['canvas', 'svg', 'd3']);
+const PRESETS = new Set(['canvas', 'svg', 'root']);
 const DEFAULT_W = 640;
 const DEFAULT_H = 360;
-
-// d3 v7, loaded from a CDN *inside* the sandbox frame. A sandboxed null-origin
-// frame may still load external subresources (the sandbox restricts origin
-// privileges, not network), so this needs no local dependency. Only the `d3`
-// preset injects it, keeping the plain canvas/svg case lean.
-const D3_SRC = 'https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js';
 
 // Escape text for use inside a double-quoted HTML attribute (the `srcdoc`).
 // We escape `&` and `"` only: that's sufficient to reproduce the inner document
@@ -62,6 +64,17 @@ export function parseMeta(lang, meta) {
   const raw = (meta || '').trim();
   const tokens = raw.split(/\s+/).filter(Boolean);
   const preset = tokens.find((t) => PRESETS.has(t));
+  // Optional `id="<group>"` partitions a file's blocks into groups: a figure only
+  // receives the `lib`/`external-lib` blocks that share its id (see sandboxPrelude
+  // /sandboxExternals). An absent id is itself a group (the default, ""), so a file
+  // with no ids shares everything file-wide as before — this is purely additive.
+  // Use it to scope a heavy `external-lib` (e.g. Vue) to the one figure that needs
+  // it instead of injecting it into every frame. Quoted like `bg`/`lib`; restricted
+  // to a safe identifier charset (a stray value can't leak anywhere, but keep it
+  // clean), falling back to the default group when malformed.
+  const idMatch = /(?:^|\s)id="([^"]*)"/.exec(raw);
+  let id = idMatch ? idMatch[1] : '';
+  if (id && !/^[\w-]+$/.test(id)) id = '';
   // A `lib` block isn't a figure: it renders no iframe, just its source. Its code
   // is concatenated into EVERY figure in the same file as a shared prelude (see
   // sandboxPrelude + buildSrcdoc), so helpers/consts written once are available to
@@ -73,9 +86,25 @@ export function parseMeta(lang, meta) {
   // with spaces survives. Recognized only when NO preset is present: a real preset
   // means the block is a figure, and a stray `lib` token there is ignored rather
   // than silently turning the figure into a snippet.
+  // An `external-lib` block is, like `lib`, shared code rather than a figure —
+  // but its body is one or more URLs (one per line / whitespace-separated), not
+  // source. Each URL is injected as a classic `<script src="…">` into EVERY
+  // figure in the file (see sandboxExternals + buildSrcdoc), as a classic
+  // `<script src>` — so a library hosted on a CDN (jsDelivr, a raw-gist proxy, …),
+  // d3 included, is in scope for all figures. Unlike `lib`, nothing is
+  // inlined: this is a runtime fetch by the frame, so the figure now depends on
+  // that URL staying reachable (the trade-off vs. an inlined `lib` block). It
+  // renders as a collapsible <details> like `lib`, but reveals the URL(s) rather
+  // than highlighted code. Checked BEFORE `lib` so the `external-lib` token isn't
+  // mistaken for a bare `lib`. The optional quoted `external-lib="…"` sets the
+  // summary label (matching `lib="…"`); bare `external-lib` falls back to default.
+  if (!preset && tokens.some((t) => t === 'external-lib' || t.startsWith('external-lib='))) {
+    const m = /(?:^|\s)external-lib="([^"]*)"/.exec(raw);
+    return { external: true, summary: m ? m[1] : '', id };
+  }
   if (!preset && tokens.some((t) => t === 'lib' || t.startsWith('lib='))) {
     const m = /(?:^|\s)lib="([^"]*)"/.exec(raw);
-    return { snippet: true, summary: m ? m[1] : '' };
+    return { snippet: true, summary: m ? m[1] : '', id };
   }
   if (!preset) return null;
   const size = tokens.find((t) => /^\d+x\d+$/.test(t));
@@ -88,7 +117,7 @@ export function parseMeta(lang, meta) {
   // opening paused behind a play button. Default stays deferred (play button) so
   // animations don't burn rAF until the reader asks for them; `auto` is for the
   // rare figure that should be moving the moment it scrolls into view. No effect
-  // on svg/d3, which already run on load.
+  // on svg, which already runs on load.
   const auto = tokens.includes('auto');
   // Optional `bg="<color>"` paints the figure body. Quotes are REQUIRED (matching
   // `lib="…"`); an unquoted `bg=#111` is ignored and the figure keeps the theme
@@ -99,20 +128,50 @@ export function parseMeta(lang, meta) {
   const bgMatch = /(?:^|\s)bg="([^"]*)"/.exec(raw);
   let bg = bgMatch ? bgMatch[1] : '';
   if (bg && !/^[#\w(),.%\s-]+$/.test(bg)) bg = '';
-  return { preset, w, h, showCode, bg, auto };
+  return { preset, w, h, showCode, bg, auto, id };
 }
 
-// Concatenate every `lib` block's source into one shared prelude string. Given a
-// list of parsed blocks (each carrying `snippet` + `code`, in document order),
-// returns the source that gets prepended into every figure's frame. The iframes
-// can't share globals at runtime (separate null-origin realms), so sharing is
-// done here by composing source text — each frame gets its own private copy of
-// the helpers, written once by the author. Blank if the file has no lib blocks.
-export function sandboxPrelude(blocks) {
+// Concatenate the `lib` blocks of one group into a shared prelude string. Given a
+// list of parsed blocks (each carrying `snippet` + `code` + `id`, in document
+// order) and the consuming figure's group id, returns the source prepended into
+// that figure's frame — only blocks whose id matches (default group is ""). The
+// iframes can't share globals at runtime (separate null-origin realms), so sharing
+// is done here by composing source text — each frame gets its own private copy of
+// the helpers, written once by the author. Blank if the group has no lib blocks.
+export function sandboxPrelude(blocks, groupId = '') {
   return (blocks || [])
-    .filter((b) => b.snippet)
+    .filter((b) => b.snippet && (b.id || '') === (groupId || ''))
     .map((b) => b.code)
     .join('\n\n');
+}
+
+// Validate a URL destined for a figure's `<script src="…">`. Returns the URL if
+// it's safe to drop into that attribute, '' otherwise. We require https:// (no
+// http/protocol-relative/data:, so a figure can't be silently downgraded) and
+// reject any char that could break out of the double-quoted attribute or the
+// surrounding tag — `"`, `<`, `>`, quotes, whitespace. The whole-document
+// escapeAttr pass (remark path) only escapes `&`/`"`, so a literal `"` here would
+// still split the attribute after decode; rejecting it outright is simpler and
+// safer. Same charset-restriction posture as `bg` in parseMeta.
+export function safeUrl(u) {
+  const s = (u || '').trim();
+  if (!s.startsWith('https://')) return '';
+  if (/["'<>\s]/.test(s)) return '';
+  return s;
+}
+
+// Collect one group's `external-lib` URL(s), in document order, as a flat list of
+// validated https URLs — only blocks whose id matches the consuming figure's group
+// (default ""). Each becomes a `<script src>` injected into that figure
+// (buildSrcdoc), loaded before the figure's own code. Invalid URLs are dropped
+// (the <details> rendering still shows the author what they typed). Mirrors
+// sandboxPrelude, but for external scripts rather than inlined source.
+export function sandboxExternals(blocks, groupId = '') {
+  return (blocks || [])
+    .filter((b) => b.external && (b.id || '') === (groupId || ''))
+    .flatMap((b) => (b.code || '').split(/\s+/))
+    .map(safeUrl)
+    .filter(Boolean);
 }
 
 // Build the inner document for one figure. `code` is the author's verbatim JS;
@@ -121,7 +180,7 @@ export function sandboxPrelude(blocks) {
 // attribute (escapeAttr); the editor's live preview passes it straight to a
 // React `srcDoc` prop, which does its own escaping — so escaping here would
 // double-encode. Keep this function attribute-agnostic.
-export function buildSrcdoc({ preset, w, h, bg, auto }, code, prelude = '') {
+export function buildSrcdoc({ preset, w, h, bg, auto }, code, prelude = '', externals = []) {
   const isCanvas = preset === 'canvas';
   // The surface element and the bindings handed to the authored code. The emitted
   // boilerplate below is written TERSE on purpose — this whole string is inlined
@@ -129,28 +188,46 @@ export function buildSrcdoc({ preset, w, h, bg, auto }, code, prelude = '') {
   // into the built HTML. The explanations therefore live out here as JS comments;
   // only the authored `code`/`prelude` (which the author controls) keep their own
   // formatting, so a thrown error's stack line stays meaningful.
-  const surface = isCanvas ? '<canvas></canvas>' : `<svg viewBox="0 0 ${w} ${h}"></svg>`;
+  // `root` is a bare, sized <div id="root"> mount point — no drawing surface of
+  // its own. It exists so a library that wants to OWN a container element (Konva,
+  // Pts, Pixi, …) can just take `root` (the element) or `'#root'` (the selector),
+  // instead of every such figure hand-rolling the "replace the canvas with a div"
+  // boilerplate. The library appends its own canvas/svg into it; those inherit the
+  // `max-width:100%` rule below and scale like the native presets.
+  const isRoot = preset === 'root';
+  const surface = isCanvas
+    ? '<canvas></canvas>'
+    : isRoot
+      ? '<div id="root"></div>'
+      : `<svg viewBox="0 0 ${w} ${h}"></svg>`;
   const setup = isCanvas
     ? `const canvas=document.querySelector('canvas'),ctx=canvas.getContext('2d'),width=canvas.width=${w},height=canvas.height=${h};`
-    : `const svg=document.querySelector('svg'),width=${w},height=${h};`;
-  // d3 is a classic script, so it runs (and defines `d3`) before the next one.
-  const lib = preset === 'd3' ? `<script src="${D3_SRC}"></script>` : '';
+    : isRoot
+      ? `const root=document.querySelector('#root'),width=${w},height=${h};`
+      : `const svg=document.querySelector('svg'),width=${w},height=${h};`;
+  // `external-lib` URLs: classic `<script src>` tags emitted before the author's
+  // inline script, so each loads and runs (defining its globals on `window`)
+  // before the figure's code does — same ordering guarantee a classic script
+  // gives. URLs are pre-validated by sandboxExternals/safeUrl, so they're safe to
+  // interpolate here.
+  const ext = (externals || []).map((u) => `<script src="${u}"></script>`).join('');
 
-  // A canvas figure animates via loop() and shouldn't burn rAF the moment the page
-  // loads — by default it opens PAUSED behind a centered, YouTube-style play button
-  // and runs only on click. The `auto` token opts a canvas figure into running on
-  // load instead. svg/d3 figures are typically a single static draw, so they run
-  // on load regardless. The button lives INSIDE the frame (not as a host overlay)
-  // so the deferral behaves identically on the published page and in the editor's
-  // live preview, both of which share this one srcdoc — no extra host JS, no
-  // cross-frame "start" message. The blank canvas placeholder reports its height
-  // just like a drawn one, so the frame is already sized to center the button in.
-  const deferred = isCanvas && !auto;
+  // A canvas (or root) figure typically animates — via loop(), or a library's own
+  // ticker mounted into root — and shouldn't burn rAF the moment the page loads.
+  // So by default it opens PAUSED behind a centered, YouTube-style play button and
+  // runs only on click. The `auto` token opts it into running on load instead. svg
+  // figures are typically a single static draw, so they run on load regardless. The
+  // button lives INSIDE the frame (not as a host overlay) so the deferral behaves
+  // identically on the published page and in the editor's live preview, both of
+  // which share this one srcdoc — no extra host JS, no cross-frame "start" message.
+  // The empty surface placeholder reports its height just like a drawn one, so the
+  // frame is already sized to center the button in.
+  const deferred = (isCanvas || isRoot) && !auto;
   const playBtn = deferred
     ? `<button id="__play" type="button" aria-label="Run figure"><svg viewBox="0 0 100 100" width="30" height="30" aria-hidden="true"><polygon points="38,28 38,72 74,50" fill="currentColor"/></svg></button>`
     : '';
   // Only canvas frames carry the play overlay, so only they need its CSS — keep
-  // the svg/d3 frames free of dead rules. inset:0 + margin:auto centers the button
+  // the svg frames free of dead rules. inset:0 + margin:auto centers the button
   // over the (unpositioned) body, which fills the frame = the canvas box. The
   // default dark translucent fill reads on light/transparent backgrounds; the
   // `.on-dark` variant (applied at runtime when the background is dark — see
@@ -165,7 +242,14 @@ export function buildSrcdoc({ preset, w, h, bg, auto }, code, prelude = '') {
   // frame shows the theme background (.sandbox-frame's var(--bg)) as before.
   const bgCss = bg ? `body{background:${bg}}` : '';
 
-  const css = `html,body{margin:0}${bgCss}canvas,svg{display:block;max-width:100%;height:auto}.err{color:#c0392b;white-space:pre-wrap;font:12px/1.5 ui-monospace,monospace;padding:.75rem}${playCss}`;
+  // Size the `root` div to the figure's WxH so a mounted library has real
+  // dimensions to read and the deferred play button has a box to center in.
+  // position:relative anchors any absolutely-positioned children the library adds;
+  // max-width:100% keeps it from overflowing the frame on a narrow column (its
+  // inner canvas/svg still scales via the rule below).
+  const rootCss = isRoot ? `#root{position:relative;width:${w}px;height:${h}px;max-width:100%}` : '';
+
+  const css = `html,body{margin:0}${bgCss}${rootCss}canvas,svg{display:block;max-width:100%;height:auto}.err{color:#c0392b;white-space:pre-wrap;font:12px/1.5 ui-monospace,monospace;padding:.75rem}${playCss}`;
 
   // loop(): a self-cancelling rAF helper so authored animation loops are easy to
   //   write and die with the frame — runs fn every frame, returns a stop().
@@ -191,7 +275,7 @@ export function buildSrcdoc({ preset, w, h, bg, auto }, code, prelude = '') {
       ? `const __play=document.getElementById('__play'),__c=getComputedStyle(document.body).backgroundColor.match(/[\\d.]+/g);if(__c&&(__c.length<4||+__c[3]>0)&&(0.299*__c[0]+0.587*__c[1]+0.114*__c[2])<128)__play.classList.add('on-dark');__play.addEventListener('click',()=>{__play.remove();run()});report();`
       : `run();`);
 
-  return `<!doctype html><html><head><meta charset="utf-8"><style>${css}</style></head><body>${surface}${playBtn}${lib}<script>${script}</script></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><style>${css}</style></head><body>${surface}${playBtn}${ext}<script>${script}</script></body></html>`;
 }
 
 // Scan raw markdown for sandbox fences, returning, in document order,

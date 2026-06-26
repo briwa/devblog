@@ -1,4 +1,4 @@
-// Build-time remark plugin: turn ```js canvas|svg|d3 fences into live iframe
+// Build-time remark plugin: turn ```js canvas|svg fences into live iframe
 // figures (see src/lib/sandbox.js for the why of the whole feature).
 //
 // This file is BUILD-ONLY — it's imported solely by astro.config.mjs and pulls
@@ -14,7 +14,7 @@
 // raw HTML before rehype runs, and Shiki consumes the fence `meta` we need.
 
 import { createShikiHighlighter } from '@astrojs/internal-helpers/shiki';
-import { parseMeta, buildSrcdoc, sandboxPrelude, escapeAttr, escapeHtml } from './sandbox.js';
+import { parseMeta, buildSrcdoc, sandboxPrelude, sandboxExternals, safeUrl, escapeAttr, escapeHtml } from './sandbox.js';
 
 // One highlighter for the whole build (creating it loads grammars/themes, so
 // it's cached as a promise and shared across every entry and block).
@@ -52,9 +52,10 @@ export function remarkSandbox() {
     };
     walk(tree);
 
-    // The shared `lib` prelude is gathered across the WHOLE file first, so every
-    // figure (regardless of its position relative to the lib blocks) gets it.
-    const prelude = sandboxPrelude(found.map(({ spec, code }) => ({ ...spec, code })));
+    // All blocks across the file, so a figure can pull the `lib`/`external-lib`
+    // blocks of its OWN group (by `id`, default "") regardless of position. The
+    // per-figure prelude/externals are computed inside the loop below.
+    const allBlocks = found.map(({ spec, code }) => ({ ...spec, code }));
 
     await Promise.all(
       found.map(async ({ parent, index, spec, code }) => {
@@ -74,7 +75,36 @@ export function remarkSandbox() {
           };
           return;
         }
-        const srcdoc = escapeAttr(buildSrcdoc(spec, code, prelude));
+        // An `external-lib` block also renders no figure — just the URL(s) it
+        // injects into every figure, in the same collapsible <details> shell as
+        // `lib` (so the two read alike), but revealing clickable links instead of
+        // highlighted source. Valid (https) URLs become links; if none validate,
+        // the raw body is shown verbatim so a typo never silently disappears.
+        if (spec.external) {
+          const urls = (code || '').split(/\s+/).map(safeUrl).filter(Boolean);
+          const summary = spec.summary || 'External library';
+          const body = urls.length
+            ? urls
+                .map(
+                  (u) =>
+                    `<a href="${escapeAttr(u)}" target="_blank" rel="noopener noreferrer">${escapeHtml(u)}</a>`
+                )
+                .join('')
+            : `<span class="sandbox-external-bad">${escapeHtml((code || '').trim())}</span>`;
+          parent.children[index] = {
+            type: 'html',
+            value:
+              `<details class="sandbox sandbox-lib sandbox-external">` +
+              `<summary><span class="sandbox-lib-tag">external-lib</span><span class="sandbox-lib-label">${escapeHtml(summary)}</span></summary>` +
+              `<div class="sandbox-external-urls">${body}</div></details>`,
+          };
+          return;
+        }
+        // Pull only this figure's group (by id) of shared lib source + external
+        // scripts, so a block tagged `id="x"` reaches only figures tagged `id="x"`.
+        const prelude = sandboxPrelude(allBlocks, spec.id);
+        const externals = sandboxExternals(allBlocks, spec.id);
+        const srcdoc = escapeAttr(buildSrcdoc(spec, code, prelude, externals));
         // Only highlight + ship the source view when the author opted in with the
         // `code` flag; otherwise the figure is preview-only and we skip the work.
         const codeHtml = spec.showCode ? await highlightCode(code) : ''; // matches the site's other blocks

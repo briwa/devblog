@@ -134,13 +134,19 @@ embedded in prose. The preset picks the surface and bindings:
 
 ````md
 ```js canvas        → 2D canvas
-```js svg 640x220   → an <svg> root
-```js d3 800x500    → an <svg> root + the d3 v7 global (CDN), custom size
-```js d3 code       → same, but with a "Show code" toggle on the figure
+```js svg 640x220   → an <svg> root, custom size
+```js root 640x220  → a sized <div id="root"> mount point (for container libs)
+```js svg code      → same, but with a "Show code" toggle on the figure
 ````
 
+There's no built-in library preset: to use d3 (or any CDN library) load it with an
+`external-lib` block and drive an `svg` or `root` figure with it (see below). Use
+`root` for libraries that want to **own a container element** (Konva, Pts, PixiJS):
+the figure exposes `root` (the `<div>`) and `'#root'` works as a selector, so you
+hand the library the mount point instead of hand-rolling a div.
+
 The published figure is **preview-only by default**; append the bare token `code`
-(in any position, e.g. ` ```js d3 800x500 code `) to expose a "Show code" toggle on
+(in any position, e.g. ` ```js svg 640x220 code `) to expose a "Show code" toggle on
 it. (The in-editor preview always offers its own toggle regardless — you're editing
 the source there.)
 
@@ -153,10 +159,11 @@ value carry spaces, so hex (`#111`), named colors (`black`) and functional forms
 rendered background at runtime and flips to a light-on-dark palette over a dark
 background, so the button always contrasts.
 
-By default a **canvas** figure opens paused behind that play button and runs only
-on click (so animations don't burn rAF until asked). Append the bare token `auto`
-(e.g. ` ```js canvas auto `) to make it run on load instead — no play button.
-`auto` has no effect on svg/d3, which already run on load.
+By default a **canvas** *or* **root** figure opens paused behind that play button
+and runs only on click (so animations — including a library's own ticker mounted
+into `root` — don't burn rAF until asked). Append the bare token `auto` (e.g.
+` ```js canvas auto `) to make it run on load instead — no play button. `auto` has
+no effect on svg, which already runs on load.
 
 A ` ```js lib ` block is **shared code, not a figure**: it renders no iframe — just
 its highlighted source inside a collapsible, Notion-style `<details>` (a "lib" tag +
@@ -174,6 +181,25 @@ in `src/lib/sandbox.js`). All `lib` blocks apply to all figures regardless of
 order. A `lib` block should *define* things, not run them (it executes in every
 frame).
 
+A ` ```js external-lib ` block is **shared code from a URL, not a figure** — the
+remote counterpart of `lib`. Its body is one or more `https://` URLs (whitespace-
+or newline-separated); each is injected as a classic ` <script src="…"> ` into
+*every* figure in the file (in document order, before the figure's own code), the
+same way the `d3` preset injects its CDN script — so a library hosted on a CDN
+(jsDelivr, a raw-gist proxy like `cdn.jsdelivr.net/gist/…`, unpkg, …) is in scope
+for all figures. Set a summary label with the quoted `external-lib="<summary>"`
+form (matching `lib`/`bg`). It renders as the same collapsible `<details>` as
+`lib`, but reveals the **URL(s) as links** rather than highlighted source. URLs
+are validated (`safeUrl` in `src/lib/sandbox.js`): **https only**, and any char
+that could break out of the `src="…"` attribute (`"`, `<`, `>`, quotes,
+whitespace) is rejected — an invalid URL is dropped from injection but still shown
+verbatim in the `<details>` so a typo isn't silent. Unlike `lib`, **nothing is
+inlined**: this is a runtime fetch by the frame, so a figure now depends on that
+URL staying reachable and won't run offline — prefer an inlined `lib` block for
+code you can paste, and `external-lib` only for a real third-party library. Each
+frame is a null-origin sandbox, so the script runs with no access to the parent
+page or `/api/*`.
+
 **What's in scope for the authored code** (set up by `buildSrcdoc` before your
 code runs; size defaults to `640x360`):
 
@@ -183,8 +209,13 @@ code runs; size defaults to `640x360`):
 | `width`, `height` | all | the surface size (the `WxH` from the fence, or 640×360). |
 | `canvas` | `canvas` | the `<canvas>` element. |
 | `ctx` | `canvas` | its `2d` context (`canvas.getContext('2d')`). |
-| `svg` | `svg`, `d3` | the `<svg>` root element (raw DOM; `d3.select(svg)` under `d3`). |
-| `d3` | `d3` | the global d3 v7, loaded from the CDN *inside* the frame. |
+| `svg` | `svg` | the `<svg>` root element (raw DOM). |
+| `root` | `root` | a sized `<div id="root">` (`position:relative`, WxH) to mount a library into; `'#root'` works as a selector too. |
+
+Code loaded via an `external-lib` block isn't a binding — it runs as a classic
+`<script src>` before your figure code, so its globals live on `window` (e.g. d3's
+`d3`, just like any `<script src>` in a normal page). Reference them by their
+global name; for d3, `d3.select(svg)`.
 
 Authored code runs inside a `try/catch` — a throw renders the stack into the
 frame instead of failing silently. The one thing it must not contain is a literal

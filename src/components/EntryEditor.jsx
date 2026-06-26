@@ -235,7 +235,7 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
           markdown({ base: markdownLanguage, codeLanguages: languages }),
           syntaxHighlighting(highlight),
           theme,
-          // Recognize ```js canvas|svg|d3 blocks and give each an inline
+          // Recognize ```js canvas|svg blocks and give each an inline
           // Show preview / Show code toggle (src/lib/sandboxPreview.js).
           sandboxPreview(),
           // Keep the caret in view while typing. The editor isn't its own
