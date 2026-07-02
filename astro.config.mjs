@@ -33,7 +33,7 @@ import { entrySummary, yearsOf } from './src/lib/entryData.js';
 // you create, edit and add images locally. The whole editing surface lives under
 // /admin/ (UI routes + this API) so a single path prefix can be auth-walled at the
 // edge (e.g. Cloudflare Access) if editing is ever exposed on a real backend. A
-// production build is still read-only (see src/lib/capabilities.js): the /admin
+// production build is still read-only (see src/lib/permissions.js): the /admin
 // pages redirect away and this API doesn't exist off the dev server.
 function devPublish() {
   const sendJson = (res, status, obj) => {

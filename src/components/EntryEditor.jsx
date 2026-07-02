@@ -15,7 +15,7 @@ import "@fontsource/roboto-mono/latin-700.css";
 import Icon from "./Icon.jsx";
 import { parseTags, serializeTags, tagClass, tagHref } from "../lib/tags.js";
 import { sandboxPreview } from "../lib/sandboxPreview.js";
-import { CAN_DELETE } from "../lib/capabilities.js";
+import { CAN_DELETE } from "../lib/permissions.js";
 import EntryDates from "./EntryDates.jsx";
 
 // The markdown SOURCE editor (CodeMirror). It's always in editing mode: it backs

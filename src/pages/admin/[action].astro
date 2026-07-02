@@ -2,7 +2,7 @@
 import Base from '../../layouts/Base.astro';
 import EntryEditor from '../../components/EntryEditor.jsx';
 import AdminEdit from '../../components/AdminEdit.jsx';
-import { EDITING_ENABLED } from '../../lib/capabilities.js';
+import { EDITING_ENABLED } from '../../lib/permissions.js';
 
 // The whole editing surface is just two static pages: /admin/new (blank editor)
 // and /admin/edit?post=<id> (loads its target at runtime — see AdminEdit). We do

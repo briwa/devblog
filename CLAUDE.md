@@ -72,8 +72,8 @@ There is no server in production to handle writes, so by default the whole editi
 surface is stripped from a production build. **One env var flips it all
 coherently:** editing is on when `import.meta.env.DEV` **or**
 `PUBLIC_ENABLE_EDITING=true` (the `EDITING_ENABLED` flag in
-**`src/lib/capabilities.js`**, alongside the `CAN_CREATE`/`CAN_EDIT`/`CAN_DELETE`
-capabilities). With it **off** (the default outside dev):
+**`src/lib/permissions.js`**, alongside the `CAN_CREATE`/`CAN_EDIT`/`CAN_DELETE`
+permissions). With it **off** (the default outside dev):
 
 - the `/admin` route builds nothing (`getStaticPaths` returns `[]`), so `dist/` has
   no `/admin` pages — a plain read-only archive;
@@ -121,7 +121,7 @@ Astro SSG + React islands.
 - **`src/pages/posts/[slug]/index.astro` + `src/components/EntryActions.jsx`** —
   the entry page. It's **read-only**: the static SSR view (`#entry-view`) plus a
   lightweight floating action bar (`EntryActions` — back-to-top, and owner-only
-  edit/new *links* to `/admin/...`, gated on the capabilities). It loads no
+  edit/new *links* to `/admin/...`, gated on the permissions). It loads no
   CodeMirror; editing happens on a separate `/admin` route.
 - **`src/pages/admin/[action].astro`** — the editing surface as just two static
   pages: `/admin/new` renders `EntryEditor` (`isNew`); `/admin/edit?post=<slug>`

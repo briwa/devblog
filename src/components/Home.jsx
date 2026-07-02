@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, cloneElement } from "react";
 import { ActivityCalendar } from "react-activity-calendar";
 import Icon from "./Icon.jsx";
 import { tagClass } from "../lib/tags.js";
-import { CAN_CREATE } from "../lib/capabilities.js";
+import { CAN_CREATE } from "../lib/permissions.js";
 
 const PAGE_SIZE = 12;
 const fmtDay = (iso) =>

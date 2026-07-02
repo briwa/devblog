@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import Icon from "./Icon.jsx";
-import { CAN_CREATE, CAN_EDIT } from "../lib/capabilities.js";
+import { CAN_CREATE, CAN_EDIT } from "../lib/permissions.js";
 
 // The floating action bar on a published entry's read view: a back-to-top button
 // (once scrolled) plus the owner-only edit/new affordances.
@@ -9,7 +9,7 @@ import { CAN_CREATE, CAN_EDIT } from "../lib/capabilities.js";
 // /admin/* route (so the whole editing surface sits under one auth-wallable path;
 // see astro.config.mjs). That makes these plain links, not React state, and keeps
 // the heavy CodeMirror editor (EntryEditor) off the public entry bundle entirely.
-// The capabilities gate them to dev, same as before: a production build renders
+// The permissions gate them to dev, same as before: a production build renders
 // none of them, so the entry stays a read-only archive.
 export default function EntryActions({ slug, date = null }) {
   // The back-to-top button only appears once you've scrolled a bit.
