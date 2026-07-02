@@ -12,9 +12,11 @@ import { adminBuild } from './src/lib/adminBuild.js';
 // the blank-title fallback) used by the dev publish middleware below — see
 // src/lib/publish.js.
 import {
+  entryBody,
   fallbackTitle,
   frontmatterTags,
   frontmatterTitle,
+  frontmatterUpdated,
   isValidPostPath,
   parseTags,
   slugify,
@@ -109,6 +111,33 @@ function devPublish() {
         if (wantsYears) return sendJson(res, 200, yearsOf(posts));
         const year = yearMatch[1];
         return sendJson(res, 200, posts.filter((p) => p.id.slice(0, 4) === year).map(entrySummary));
+      });
+
+      // Read one entry's source for the /admin/edit editor. There's a single
+      // edit page (not one prerendered per post), so it loads its target at
+      // runtime from here — the read counterpart to the write endpoints below.
+      server.middlewares.use('/admin/api/entry', async (req, res, next) => {
+        if (req.method !== 'GET') return next();
+        try {
+          // `req.url` is the path remaining after the mount point, query intact.
+          const id = new URL(req.url, 'http://localhost').searchParams.get('post') || '';
+          const path = `src/content/posts/${id}.md`;
+          if (!isValidPostPath(path)) throw new Error('Invalid entry');
+          const text = await readFile(join(root(), path), 'utf8').catch(() => null);
+          if (text == null) return sendJson(res, 404, { error: 'Entry not found' });
+          // The same fields the read view derives — creation day from the filename
+          // (there's no `date` frontmatter), title/tags/updated from frontmatter,
+          // body sans frontmatter — so the editor restores exactly what it'll save.
+          sendJson(res, 200, {
+            markdown: entryBody(text),
+            title: frontmatterTitle(text),
+            tags: frontmatterTags(text),
+            updated: frontmatterUpdated(text) || null,
+            created: `${id.slice(0, 10)}T00:00:00.000Z`,
+          });
+        } catch (e) {
+          sendJson(res, 500, { error: e.message });
+        }
       });
 
       // Create a new entry, or update an existing one when `path` is given.

@@ -10,7 +10,7 @@
 // To turn editing on for a real deployment, set the **`PUBLIC_ENABLE_EDITING=true`**
 // build-time environment variable. That one switch flips everything coherently:
 // the capabilities below, whether the /admin pages are built (getStaticPaths in
-// `src/pages/admin/[...path].astro`), and whether the editor island + its /admin
+// `src/pages/admin/[action].astro`), and whether the editor islands + the /admin
 // redirect are kept out of the build (`src/lib/adminBuild.js`). NOTE: this only
 // makes sense once a production write backend for /admin/api/* actually exists —
 // there is none yet, so the UI would load but Save would fail. Set it as a genuine

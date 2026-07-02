@@ -1,0 +1,25 @@
+---
+import Base from '../../layouts/Base.astro';
+import EntryEditor from '../../components/EntryEditor.jsx';
+import AdminEdit from '../../components/AdminEdit.jsx';
+import { EDITING_ENABLED } from '../../lib/capabilities.js';
+
+// The whole editing surface is just two static pages: /admin/new (blank editor)
+// and /admin/edit?post=<id> (loads its target at runtime — see AdminEdit). We do
+// NOT prerender a page per entry; the edit page is generic. Gated in one place —
+// with editing off (the default outside dev; see EDITING_ENABLED /
+// PUBLIC_ENABLE_EDITING), getStaticPaths yields nothing, so no /admin page is
+// built and src/lib/adminBuild.js strips the islands and bounces /admin/*.
+export function getStaticPaths() {
+  if (!EDITING_ENABLED) return [];
+  return [{ params: { action: 'new' } }, { params: { action: 'edit' } }];
+}
+
+const { action } = Astro.params;
+---
+
+<Base title={action === 'edit' ? 'Edit entry' : 'New entry'}>
+  {action === 'new'
+    ? <EntryEditor isNew={true} client:only="react" />
+    : <AdminEdit client:only="react" />}
+</Base>

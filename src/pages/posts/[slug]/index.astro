@@ -34,7 +34,7 @@ const tags = parseTags(post.data.tags);
 <Base title={post.data.title}>
   <h1 slot="brand"><a href={homeHref}>{ SITE_NAME }</a></h1>
   {/* Static, server-rendered view — the only view of an entry now (editing lives
-      on /admin/posts/<slug>). `data-pagefind-body` scopes the search index to
+      on /admin/edit?post=<slug>). `data-pagefind-body` scopes the search index to
       entry pages only — the home and /admin editor pages lack it, so Pagefind
       skips them. The h1 inside becomes the result title; the created date is
       exposed as filterable/displayable meta. */}
@@ -62,7 +62,7 @@ const tags = parseTags(post.data.tags);
   </div>
 
   {/* Read-view action bar (owner-only, dev): back-to-top + edit/new links. Edit
-      is a dedicated /admin/posts/<slug> route, not an in-place toggle, so this
+      is a dedicated /admin/edit?post=<slug> route, not an in-place toggle, so this
       page never loads the CodeMirror editor. `date` seeds the per-day + button. */}
   <EntryActions slug={post.id} date={created.toISOString()} client:only="react" />
 

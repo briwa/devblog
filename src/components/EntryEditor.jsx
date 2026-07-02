@@ -19,11 +19,12 @@ import { CAN_DELETE } from "../lib/capabilities.js";
 import EntryDates from "./EntryDates.jsx";
 
 // The markdown SOURCE editor (CodeMirror). It's always in editing mode: it backs
-// the dedicated /admin routes (/admin/new and /admin/posts/<slug>), never the
-// public read view — that shows the server-rendered prose plus the lightweight
-// <EntryActions> bar. Save/Cancel therefore navigate back to the entry (or home)
-// rather than toggling a view in place. Writes go to the dev-only /admin/api/*
-// middleware (astro.config.mjs); a production build redirects these routes away.
+// the dedicated /admin routes (/admin/new, and /admin/edit?post=<slug> via
+// AdminEdit), never the public read view — that shows the server-rendered prose
+// plus the lightweight <EntryActions> bar. Save/Cancel therefore navigate back to
+// the entry (or home) rather than toggling a view in place. Writes go to the
+// dev-only /admin/api/* middleware (astro.config.mjs); a production build (without
+// PUBLIC_ENABLE_EDITING) doesn't build these routes at all.
 
 // The site renders every date in UTC, but an entry belongs to the author's
 // *local* day. So we stamp timestamps with the local wall-clock wearing a `Z`:

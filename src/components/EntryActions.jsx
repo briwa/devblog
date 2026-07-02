@@ -43,7 +43,7 @@ export default function EntryActions({ slug, date = null }) {
         <>
           {topDivider}
           {CAN_EDIT && (
-            <a className="fab-btn" href={`/admin/posts/${slug}/`} aria-label="Edit entry" title="Edit entry">
+            <a className="fab-btn" href={`/admin/edit?post=${slug}`} aria-label="Edit entry" title="Edit entry">
               <Icon name="pencil" size={18} />
             </a>
           )}

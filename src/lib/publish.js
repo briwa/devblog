@@ -97,6 +97,26 @@ export function frontmatterTitle(text) {
   return v;
 }
 
+// The `updated:` value from a file's leading frontmatter, or '' if none. We write
+// it as a bare ISO string (no quotes), so the raw value is returned as-is. Used by
+// the dev-only /admin/api/entry read endpoint so the editor can restore it.
+export function frontmatterUpdated(text) {
+  const m = FRONTMATTER.exec(text || '');
+  if (!m) return '';
+  const line = /^[ \t]*updated:[ \t]*(.+?)[ \t]*$/m.exec(m[1]);
+  return line ? line[1].trim() : '';
+}
+
+// The markdown body — everything after the leading frontmatter block (matching
+// what astro:content hands the read view as `post.body`), with the blank line(s)
+// the writer inserts after the closing `---` trimmed off. Used by the same read
+// endpoint to seed the editor's document.
+export function entryBody(text) {
+  const t = text || '';
+  const m = FRONTMATTER.exec(t);
+  return (m ? t.slice(m[0].length) : t).replace(/^\n+/, '');
+}
+
 // --- Blank-title heuristic --------------------------------------------------
 // The first prose paragraph — skips blank lines, headings, images and quotes, so
 // the title is drawn from what the entry actually opens with (the input to
