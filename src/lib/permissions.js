@@ -2,22 +2,12 @@
 // gates its "write" affordances on (the header +, the heatmap's empty-day links,
 // the entry's edit pencil, the new-entry +, and delete).
 //
-// Creating, editing and deleting entries is a **dev-only** convenience by default:
-// the /admin editor routes and their /admin/api/{publish,upload,delete} writes
-// (emulated by devPublish in astro.config.mjs) exist only under `astro dev`, so a
-// production build is a read-only archive.
-//
-// To turn editing on for a real deployment, set the **`PUBLIC_ENABLE_EDITING=true`**
-// build-time environment variable. That one switch flips everything coherently:
-// the permissions below, whether the /admin pages are built (getStaticPaths in
-// `src/pages/admin/[action].astro`), and whether the editor islands + the /admin
-// redirect are kept out of the build (`src/lib/adminBuild.js`). NOTE: this only
-// makes sense once a production write backend for /admin/api/* actually exists —
-// there is none yet, so the UI would load but Save would fail. Set it as a genuine
-// environment variable in your host's build settings (e.g. Cloudflare Pages), not
-// just a local `.env`: it's read from `process.env` in the build config too, which
-// a `.env`-only value may not reach.
-const allowed = import.meta.env.DEV || import.meta.env.PUBLIC_ENABLE_EDITING === 'true';
+// Creating, editing and deleting entries is a **dev-only** convenience: the /admin
+// editor routes and their /admin/api/{publish,upload,delete} writes (emulated by
+// devPublish in astro.config.mjs) exist only under `astro dev`. A production build
+// is always a read-only archive — there is no production write backend for
+// /admin/api/*, so editing is deliberately confined to local authoring.
+const allowed = import.meta.env.DEV;
 
 // Split into named flags so call sites read clearly and the rule can later differ
 // per action.

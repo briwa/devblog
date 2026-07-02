@@ -23,8 +23,8 @@ import EntryDates from "./EntryDates.jsx";
 // AdminEdit), never the public read view — that shows the server-rendered prose
 // plus the lightweight <EntryActions> bar. Save/Cancel therefore navigate back to
 // the entry (or home) rather than toggling a view in place. Writes go to the
-// dev-only /admin/api/* middleware (astro.config.mjs); a production build (without
-// PUBLIC_ENABLE_EDITING) doesn't build these routes at all.
+// dev-only /admin/api/* middleware (astro.config.mjs); a production build doesn't
+// build these routes at all.
 
 // The site renders every date in UTC, but an entry belongs to the author's
 // *local* day. So we stamp timestamps with the local wall-clock wearing a `Z`:
@@ -289,12 +289,20 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
         msg: `${what} locally — commit and push to publish.`,
         url: data.commit || data.url,
       });
-      // Head to the entry once the toast has shown — an edit lands back on its own
-      // page, a brand-new entry on home. Editing an existing file writes over the
-      // one Astro already renders, so its /posts/<slug> page reflects the change;
-      // for a new entry `data.path` gives the freshly created slug. Keep `busy`
-      // set so the form can't be re-submitted while we navigate.
-      const dest = path ? entryHref : (data.path ? `/posts/${data.path.replace(/^src\/content\/posts\//, "").replace(/\.md$/, "")}/` : "/");
+      // Head to the entry once the toast has shown. Editing an existing file writes
+      // over the one Astro already renders, so its /posts/<slug> page reflects the
+      // change immediately — always return there. A brand-new entry is different:
+      // publish only writes a markdown file to be committed and rebuilt, so its
+      // /posts/<slug> page doesn't exist yet. In `astro dev` Astro renders it on
+      // demand from the file we just wrote, so jump straight there; in a prod
+      // (editing-enabled) build it would 404 until the host rebuilds, so fall back
+      // to home instead. Keep `busy` set so the form can't be re-submitted mid-nav.
+      let dest = "/";
+      if (path) {
+        dest = entryHref;
+      } else if (import.meta.env.DEV && data.path) {
+        dest = `/posts/${data.path.replace(/^src\/content\/posts\//, "").replace(/\.md$/, "")}/`;
+      }
       setTimeout(() => { window.location.href = dest; }, 1400);
     } catch (e) {
       setToast({ kind: "err", msg: e.message });

@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { unified } from '@astrojs/markdown-remark';
 import { remarkStripHtml } from './src/lib/remarkStripHtml.js';
 import { remarkSandbox } from './src/lib/remarkSandbox.js';
-// Keeps the dev-only /admin editing surface out of production builds (unless
-// PUBLIC_ENABLE_EDITING is set) — island exclusion + the /admin redirect.
+// Keeps the dev-only /admin editing surface out of production builds — island
+// exclusion + the /admin redirect.
 import { adminBuild } from './src/lib/adminBuild.js';
 // Entry helpers (filename/slug derivation, path validation, frontmatter parsing,
 // the blank-title fallback) used by the dev publish middleware below — see
@@ -250,8 +250,7 @@ function devPublish() {
 // Static blog (Astro SSG); React is here only for the CodeMirror editor island.
 // devPublish() emulates the editor's publish API for local authoring in dev.
 // adminBuild() keeps the dev-only /admin editing surface out of production builds
-// (drops the editor island, emits the /admin redirect) unless PUBLIC_ENABLE_EDITING
-// is set — see src/lib/adminBuild.js.
+// (drops the editor island, emits the /admin redirect) — see src/lib/adminBuild.js.
 export default defineConfig({
   integrations: [react(), adminBuild()],
   // remarkStripHtml removes any author-written raw HTML so prose renders as

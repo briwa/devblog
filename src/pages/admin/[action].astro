@@ -7,9 +7,9 @@ import { EDITING_ENABLED } from '../../lib/permissions.js';
 // The whole editing surface is just two static pages: /admin/new (blank editor)
 // and /admin/edit?post=<id> (loads its target at runtime — see AdminEdit). We do
 // NOT prerender a page per entry; the edit page is generic. Gated in one place —
-// with editing off (the default outside dev; see EDITING_ENABLED /
-// PUBLIC_ENABLE_EDITING), getStaticPaths yields nothing, so no /admin page is
-// built and src/lib/adminBuild.js strips the islands and bounces /admin/*.
+// outside dev EDITING_ENABLED is false, so getStaticPaths yields nothing, no
+// /admin page is built, and src/lib/adminBuild.js strips the islands and bounces
+// /admin/*.
 export function getStaticPaths() {
   if (!EDITING_ENABLED) return [];
   return [{ params: { action: 'new' } }, { params: { action: 'edit' } }];

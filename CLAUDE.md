@@ -68,12 +68,10 @@ which are emulated by a Vite middleware, `devPublish()`, in `astro.config.mjs`,
 reading/writing **straight to local disk** (`src/content/posts/`, `public/uploads/`).
 You then commit and push the new files yourself, and the static host rebuilds.
 
-There is no server in production to handle writes, so by default the whole editing
-surface is stripped from a production build. **One env var flips it all
-coherently:** editing is on when `import.meta.env.DEV` **or**
-`PUBLIC_ENABLE_EDITING=true` (the `EDITING_ENABLED` flag in
-**`src/lib/permissions.js`**, alongside the `CAN_CREATE`/`CAN_EDIT`/`CAN_DELETE`
-permissions). With it **off** (the default outside dev):
+There is no server in production to handle writes, so the whole editing surface is
+stripped from a production build. Editing is on exactly when `import.meta.env.DEV`
+(the `EDITING_ENABLED` flag in **`src/lib/permissions.js`**, alongside the
+`CAN_CREATE`/`CAN_EDIT`/`CAN_DELETE` permissions). Outside dev it's **off**, so:
 
 - the `/admin` route builds nothing (`getStaticPaths` returns `[]`), so `dist/` has
   no `/admin` pages — a plain read-only archive;
@@ -84,12 +82,9 @@ permissions). With it **off** (the default outside dev):
 - the read view's edit/new links (`EntryActions.jsx`) and the home's New/heatmap
   links don't render.
 
-With it **on**, all of that reverses: `/admin` pages build, the editor stays
-bundled, no redirect is written, and the links show. (It only makes sense once a
-real `/admin/api/*` write backend exists — none does yet, so Save would fail; set
-it as a genuine build env var, e.g. in Cloudflare Pages, since `adminBuild.js` reads
-it from `process.env`.) To exclude another admin-only island from prod builds, add
-its path to `ADMIN_ONLY_MODULES` in `adminBuild.js`.
+In `astro dev` all of that reverses: `/admin` pages build, the editor stays
+bundled, no redirect is written, and the links show. To exclude another admin-only
+island from prod builds, add its path to `ADMIN_ONLY_MODULES` in `adminBuild.js`.
 
 `dist/pagefind/` is mirrored from disk by that same middleware, so search works in
 dev *only after* you've run `npm run build` (or `npm run pagefind`) once. The
