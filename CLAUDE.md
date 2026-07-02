@@ -47,20 +47,45 @@ To enable the `updated:` stamping git hook (see below), run once:
   user explicitly asks. Verify with `npm run build` and by reading the code; leave
   interactive/visual checking to the user.
 
-## Authoring — dev-only by design
+## Authoring — dev-only, under `/admin/`
 
-Creating, editing and deleting entries works **only in `astro dev`**. The in-app
-editor (`EntryEditor.jsx`) POSTs to `/api/publish`, `/api/upload` and `/api/delete`,
-which are emulated by a Vite middleware, `devPublish()`, in `astro.config.mjs`,
-writing **straight to local disk** (`src/content/posts/`, `public/uploads/`). You
-then commit and push the new files yourself, and the static host rebuilds.
+Creating, editing and deleting entries works **only in `astro dev`**, and the whole
+editing surface lives under a single **`/admin/`** prefix — one path to auth-wall at
+the edge (e.g. Cloudflare Access) if editing is ever exposed on a real backend:
 
-There is no server in production to handle those routes, so the editing affordances
-are **hidden in a production build**. Every "write" control — the header `+`, the
-heatmap's empty-day links, the entry's edit pencil, the new-entry `+`, delete —
-gates on the named capabilities in **`src/lib/capabilities.js`** (`CAN_CREATE`,
-`CAN_EDIT`, `CAN_DELETE`), which there are all simply `import.meta.env.DEV`. A built
-`dist/` is therefore a plain read-only archive.
+- **`/admin/new`** — create a new entry (`EntryEditor` in `isNew` mode).
+- **`/admin/posts/<slug>`** — edit an existing entry (`EntryEditor` seeded from the
+  post). A *dedicated page*, not an in-place `?edit` toggle on the public entry.
+- Both are the one catch-all route **`src/pages/admin/[...path].astro`**.
+- **`/admin/api/{publish,upload,delete}`** — the writes.
+
+The editor (`EntryEditor.jsx`) POSTs to those `/admin/api/*` routes, which are
+emulated by a Vite middleware, `devPublish()`, in `astro.config.mjs`, writing
+**straight to local disk** (`src/content/posts/`, `public/uploads/`). You then
+commit and push the new files yourself, and the static host rebuilds.
+
+There is no server in production to handle writes, so by default the whole editing
+surface is stripped from a production build. **One env var flips it all
+coherently:** editing is on when `import.meta.env.DEV` **or**
+`PUBLIC_ENABLE_EDITING=true` (the `EDITING_ENABLED` flag in
+**`src/lib/capabilities.js`**, alongside the `CAN_CREATE`/`CAN_EDIT`/`CAN_DELETE`
+capabilities). With it **off** (the default outside dev):
+
+- the `/admin` route builds nothing (`getStaticPaths` returns `[]`), so `dist/` has
+  no `/admin` pages — a plain read-only archive;
+- **`src/lib/adminBuild.js`** (an Astro integration in `astro.config.mjs`) drops the
+  editor island from the bundle — Astro would otherwise ship its ~540KB of
+  CodeMirror as an orphaned chunk (withastro/astro#4564) — and generates a
+  `dist/_redirects` rule bouncing `/admin/*` to the read view;
+- the read view's edit/new links (`EntryActions.jsx`) and the home's New/heatmap
+  links don't render.
+
+With it **on**, all of that reverses: `/admin` pages build, the editor stays
+bundled, no redirect is written, and the links show. (It only makes sense once a
+real `/admin/api/*` write backend exists — none does yet, so Save would fail; set
+it as a genuine build env var, e.g. in Cloudflare Pages, since `adminBuild.js` reads
+it from `process.env`.) To exclude another admin-only island from prod builds, add
+its path to `ADMIN_ONLY_MODULES` in `adminBuild.js`.
 
 `dist/pagefind/` is mirrored from disk by that same middleware, so search works in
 dev *only after* you've run `npm run build` (or `npm run pagefind`) once. The
@@ -89,14 +114,21 @@ Astro SSG + React islands.
   The page only ships the *set of years*; each year's entries load on demand from
   `/data/<year>.json` (`src/pages/data/[year].json.js`) so the payload doesn't grow
   with the archive.
-- **`src/pages/posts/[slug]/index.astro` + `src/components/EntryEditor.jsx`** —
-  entry page. View and edit are the **same page**: the static SSR view (`#entry-view`)
-  is shown read-only; the pencil flips to an in-place CodeMirror source editor
-  (toggles `?edit`, no navigation). `EntryEditor` is large and handles the editor,
-  image upload, delete, toasts, the floating toolbar, and scroll-anchoring across
-  the view↔edit swap.
-- **`src/pages/posts/new/index.astro`** — new entry; just `EntryEditor` in
-  always-editing mode (`isNew`).
+- **`src/pages/posts/[slug]/index.astro` + `src/components/EntryActions.jsx`** —
+  the entry page. It's **read-only**: the static SSR view (`#entry-view`) plus a
+  lightweight floating action bar (`EntryActions` — back-to-top, and owner-only
+  edit/new *links* to `/admin/...`, gated on the capabilities). It loads no
+  CodeMirror; editing happens on a separate `/admin` route.
+- **`src/pages/admin/[...path].astro` + `src/components/EntryEditor.jsx`** — the
+  whole editing surface on one catch-all route: `/admin/new` (blank, `isNew`) and
+  `/admin/posts/<slug>` (seeded from the post). `EntryEditor` is the large
+  CodeMirror source editor (always in editing mode): image upload, delete, toasts,
+  the floating toolbar, the tag editor. Save/Cancel navigate back to the entry's
+  read view. Its `getStaticPaths` returns `[]` unless editing is enabled
+  (`EDITING_ENABLED`), so **no `/admin` page is built in production** by default —
+  the single build gate lives here. See the Authoring section and
+  **`src/lib/adminBuild.js`** for the rest of the story (dropping the editor island
+  from the bundle, generating the `/admin/*` redirect), all driven by the same flag.
 - **`src/components/Search.astro`** — Pagefind full-text search in the header. Thin
   wrapper over Pagefind's JS API; index in `dist/pagefind/`. Entry pages carry
   `data-pagefind-body` so only entries are indexed (home/editor are skipped).

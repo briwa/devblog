@@ -5,6 +5,9 @@ import { join } from 'node:path';
 import { unified } from '@astrojs/markdown-remark';
 import { remarkStripHtml } from './src/lib/remarkStripHtml.js';
 import { remarkSandbox } from './src/lib/remarkSandbox.js';
+// Keeps the dev-only /admin editing surface out of production builds (unless
+// PUBLIC_ENABLE_EDITING is set) — island exclusion + the /admin redirect.
+import { adminBuild } from './src/lib/adminBuild.js';
 // Entry helpers (filename/slug derivation, path validation, frontmatter parsing,
 // the blank-title fallback) used by the dev publish middleware below — see
 // src/lib/publish.js.
@@ -23,9 +26,13 @@ import {
 import { entrySummary, yearsOf } from './src/lib/entryData.js';
 
 // Dev-only authoring: the deployed static site has no server for the editor's
-// /api/* routes, so these middlewares stand in for /api/publish, /api/upload and
-// /api/delete by writing straight to disk — letting you create, edit and add
-// images locally. (A production build is read-only; see src/lib/capabilities.js.)
+// /admin/api/* routes, so these middlewares stand in for /admin/api/publish,
+// /admin/api/upload and /admin/api/delete by writing straight to disk — letting
+// you create, edit and add images locally. The whole editing surface lives under
+// /admin/ (UI routes + this API) so a single path prefix can be auth-walled at the
+// edge (e.g. Cloudflare Access) if editing is ever exposed on a real backend. A
+// production build is still read-only (see src/lib/capabilities.js): the /admin
+// pages redirect away and this API doesn't exist off the dev server.
 function devPublish() {
   const sendJson = (res, status, obj) => {
     res.statusCode = status;
@@ -105,7 +112,7 @@ function devPublish() {
       });
 
       // Create a new entry, or update an existing one when `path` is given.
-      server.middlewares.use('/api/publish', async (req, res, next) => {
+      server.middlewares.use('/admin/api/publish', async (req, res, next) => {
         if (req.method !== 'POST') return next();
         try {
           const body = await readBody(req);
@@ -178,7 +185,7 @@ function devPublish() {
       });
 
       // Delete an entry file.
-      server.middlewares.use('/api/delete', async (req, res, next) => {
+      server.middlewares.use('/admin/api/delete', async (req, res, next) => {
         if (req.method !== 'POST') return next();
         try {
           const body = await readBody(req);
@@ -192,7 +199,7 @@ function devPublish() {
       });
 
       // Upload an image into public/uploads/ (served at /uploads/<name>).
-      server.middlewares.use('/api/upload', async (req, res, next) => {
+      server.middlewares.use('/admin/api/upload', async (req, res, next) => {
         if (req.method !== 'POST') return next();
         try {
           const body = await readBody(req);
@@ -213,8 +220,11 @@ function devPublish() {
 
 // Static blog (Astro SSG); React is here only for the CodeMirror editor island.
 // devPublish() emulates the editor's publish API for local authoring in dev.
+// adminBuild() keeps the dev-only /admin editing surface out of production builds
+// (drops the editor island, emits the /admin redirect) unless PUBLIC_ENABLE_EDITING
+// is set — see src/lib/adminBuild.js.
 export default defineConfig({
-  integrations: [react()],
+  integrations: [react(), adminBuild()],
   // remarkStripHtml removes any author-written raw HTML so prose renders as
   // Markdown only; remarkSandbox then turns ```js canvas|svg|d3 fences into live
   // iframe figures (src/lib/*). ORDER MATTERS: strip first, because remarkSandbox

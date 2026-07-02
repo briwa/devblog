@@ -233,7 +233,7 @@ export default function Home() {
     // read-only (production) build, where there's no writing, so it's inert.
     const href = dayEntries.length
       ? `/posts/${dayEntries[0].id}/`
-      : CAN_CREATE ? `/posts/new?date=${activity.date}` : null;
+      : CAN_CREATE ? `/admin/new?date=${activity.date}` : null;
     const titles = dayEntries.map((e) => e.title);
     const showTip = (e) => {
       const r = e.currentTarget.getBoundingClientRect();
@@ -265,7 +265,7 @@ export default function Home() {
           {CAN_CREATE && (
             <>
               <span className="hm-sep" aria-hidden="true">|</span>
-              <a href="/posts/new/" className="hm-new">New</a>
+              <a href="/admin/new/" className="hm-new">New</a>
             </>
           )}
         </span>

@@ -15,8 +15,15 @@ import "@fontsource/roboto-mono/latin-700.css";
 import Icon from "./Icon.jsx";
 import { parseTags, serializeTags, tagClass, tagHref } from "../lib/tags.js";
 import { sandboxPreview } from "../lib/sandboxPreview.js";
-import { CAN_CREATE, CAN_EDIT, CAN_DELETE } from "../lib/capabilities.js";
+import { CAN_DELETE } from "../lib/capabilities.js";
 import EntryDates from "./EntryDates.jsx";
+
+// The markdown SOURCE editor (CodeMirror). It's always in editing mode: it backs
+// the dedicated /admin routes (/admin/new and /admin/posts/<slug>), never the
+// public read view — that shows the server-rendered prose plus the lightweight
+// <EntryActions> bar. Save/Cancel therefore navigate back to the entry (or home)
+// rather than toggling a view in place. Writes go to the dev-only /admin/api/*
+// middleware (astro.config.mjs); a production build redirects these routes away.
 
 // The site renders every date in UTC, but an entry belongs to the author's
 // *local* day. So we stamp timestamps with the local wall-clock wearing a `Z`:
@@ -28,20 +35,7 @@ const localStamp = (d = new Date()) => {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.000Z`;
 };
 
-// When toggling between the rendered prose and the monospace source editor the
-// fonts (and thus line heights / wrapping) differ wildly, so a pixel-for-pixel
-// scroll restore lands on the wrong paragraph. Instead we anchor on the
-// paragraph itself: `normKey` reduces a block of text to lowercase alphanumerics
-// only — stripping markdown syntax (>, **, -, 1.) and smart quotes — so the same
-// paragraph compares equal whether it's rendered HTML or raw markdown source.
 const HEADER_OFFSET = 96; // reading line just below the sticky header
-const normKey = (s) => (s || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
-// Two keys name the same paragraph when they share a long-enough leading run.
-const samePara = (a, b) => {
-  let i = 0;
-  while (i < a.length && i < b.length && a[i] === b[i]) i++;
-  return i >= 10;
-};
 
 // Colors reference our CSS variables, so the editor follows the site theme with
 // no JS — light/dark just works.
@@ -69,10 +63,7 @@ const theme = EditorView.theme({
   "::selection": { backgroundColor: "var(--hover-bg)" },
 });
 
-// A lightweight markdown SOURCE editor (CodeMirror). The public view renders
-// the markdown to HTML (Astro/Shiki); editing shows the raw source here.
 export default function EntryEditor({ markdown: md = "", title: initialTitle = "", date = null, updated = null, path = null, isNew = false, tags: initialTags = "" }) {
-  const [editing, setEditing] = useState(isNew && CAN_CREATE);
   const [title, setTitle] = useState(initialTitle);
   // Tags (frontmatter `tags`) — edited as chips here, persisted as a
   // comma-separated string on Save. Normalized through parseTags so casing,
@@ -89,102 +80,21 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
   const hostRef = useRef(null);
   const cmRef = useRef(null);
   const fileRef = useRef(null);
-  const scrollRef = useRef(null); // paragraph anchor captured across a view<->edit toggle
 
-  const setEditParam = (on) => {
-    const url = new URL(window.location.href);
-    if (on) url.searchParams.set("edit", "");
-    else url.searchParams.delete("edit");
-    window.history.replaceState({}, "", url);
-  };
+  // Where Cancel/Save/Delete return to. An edit knows its entry (derive the slug
+  // from the file path — the same YYYY-MM-DD-slug id Astro's glob uses); a new
+  // entry has no page yet, so it falls back to home.
+  const slug = path ? path.replace(/^src\/content\/posts\//, "").replace(/\.md$/, "") : null;
+  const entryHref = slug ? `/posts/${slug}/` : "/";
 
-  // --- Scroll anchoring across the view<->edit toggle ----------------------
-  // Capture the paragraph at the top of the reading area (and where it sits in
-  // the viewport) so we can put it back in the same place after the swap.
-  // The block elements we anchor on. Deeply nested markdown (e.g. a long list)
-  // renders as one big top-level node, so we match these leaf blocks directly —
-  // each lines up with a single source line.
-  const BLOCK_SEL = "p, li, h1, h2, h3, h4, h5, h6, blockquote, pre";
-  function captureView() {
-    const prose = document.querySelector("#entry-view .prose");
-    if (!prose) return null;
-    // The deepest block sitting on the reading line — elementsFromPoint returns
-    // innermost first, so a paragraph wins over its wrapping list item.
-    const x = Math.round(prose.getBoundingClientRect().left + prose.clientWidth / 2);
-    for (const el of document.elementsFromPoint(x, HEADER_OFFSET)) {
-      if (el.matches(BLOCK_SEL) && prose.contains(el) && normKey(el.textContent)) {
-        return { key: normKey(el.textContent), top: el.getBoundingClientRect().top };
-      }
-    }
-    return null;
-  }
-  function captureEditor() {
-    const view = cmRef.current;
-    if (!view) return null;
-    const rect = view.dom.getBoundingClientRect();
-    let pos = view.posAtCoords({ x: rect.left + 8, y: Math.max(HEADER_OFFSET, rect.top + 4) });
-    if (pos == null) pos = 0;
-    const line = view.state.doc.lineAt(pos);
-    const c = view.coordsAtPos(line.from);
-    return { key: normKey(line.text), top: c ? c.top : HEADER_OFFSET };
-  }
-
-  // Re-place the captured paragraph at its former viewport offset. We read the
-  // target's live position (so it works even after CodeMirror auto-scrolls on
-  // focus) and shift by the delta.
-  function restoreToEditor(anchor) {
-    const view = cmRef.current;
-    if (!view || !anchor) return;
-    const doc = view.state.doc;
-    for (let i = 1; i <= doc.lines; i++) {
-      if (samePara(normKey(doc.line(i).text), anchor.key)) {
-        const c = view.coordsAtPos(doc.line(i).from);
-        if (c) window.scrollBy(0, c.top - anchor.top);
-        return;
-      }
-    }
-  }
-  function restoreToView(anchor) {
-    const prose = document.querySelector("#entry-view .prose");
-    if (!prose || !anchor) return;
-    for (const el of prose.querySelectorAll(BLOCK_SEL)) {
-      if (samePara(normKey(el.textContent), anchor.key)) {
-        window.scrollBy(0, el.getBoundingClientRect().top - anchor.top);
-        return;
-      }
-    }
-  }
-
-  function enterEdit() {
-    scrollRef.current = captureView(); // realign this paragraph once the editor mounts
-    setToast(null);
-    setEditing(true);
-    setEditParam(true);
-  }
-  function leaveEdit() {
-    scrollRef.current = captureEditor(); // realign once the static view returns
-    setEditing(false);
-    setEditParam(false);
-  }
-
-  // New entries can be dated via ?date=YYYY-MM-DD (from the heatmap); otherwise
-  // they default to today, so the date is set and shown right away. Existing
-  // entries can be deep-linked straight into edit mode with ?edit.
+  // New entries can be dated via ?date=YYYY-MM-DD (from the heatmap or the
+  // per-day + button); otherwise they default to today, so the date is set and
+  // shown right away.
   useEffect(() => {
-    if (isNew) {
-      const d = new URLSearchParams(window.location.search).get("date");
-      setEntryDate(d ? `${d}T12:00:00.000Z` : localStamp());
-      return;
-    }
-    // Honour the ?edit deep-link only when editing is permitted.
-    if (CAN_EDIT && new URLSearchParams(window.location.search).has("edit")) setEditing(true);
+    if (!isNew) return;
+    const d = new URLSearchParams(window.location.search).get("date");
+    setEntryDate(d ? `${d}T12:00:00.000Z` : localStamp());
   }, []);
-
-  // Show the static view when not editing, hide it while editing.
-  useEffect(() => {
-    const view = document.getElementById("entry-view");
-    if (view) view.style.display = editing ? "none" : "";
-  }, [editing]);
 
   // The floating toolbar's back-to-top button only appears once you've scrolled.
   useEffect(() => {
@@ -222,9 +132,9 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
     return () => clearTimeout(id);
   }, [toast]);
 
-  // Create / tear down the CodeMirror instance with edit mode.
+  // Create / tear down the CodeMirror instance once, on mount.
   useEffect(() => {
-    if (!editing || !hostRef.current) return;
+    if (!hostRef.current) return;
     const view = new EditorView({
       state: EditorState.create({
         doc: md,
@@ -243,8 +153,7 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
           // so the browser doesn't reliably follow the caret past the bottom
           // edge. When typing pushes the caret below a comfortable margin,
           // nudge the window down by the overflow (the space is already there;
-          // we just have to scroll to it). Only on real input (docChanged), so
-          // it never fights the view<->edit scroll-anchoring or focus.
+          // we just have to scroll to it). Only on real input (docChanged).
           EditorView.updateListener.of((u) => {
             if (!u.docChanged) return;
             const c = u.view.coordsAtPos(u.view.state.selection.main.head);
@@ -257,52 +166,23 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
       parent: hostRef.current,
     });
     cmRef.current = view;
-    // If we arrived from a scroll position, drop the caret on that same
-    // paragraph before focusing — otherwise focus (and, on mobile, the keyboard
-    // re-scrolling the caret into view) yanks the page to the document's top.
-    const anchor = scrollRef.current;
-    if (anchor) {
-      const d = view.state.doc;
-      for (let i = 1; i <= d.lines; i++) {
-        if (samePara(normKey(d.line(i).text), anchor.key)) {
-          view.dispatch({ selection: { anchor: d.line(i).from } });
-          break;
-        }
-      }
-    }
     view.focus();
     return () => {
       view.destroy();
       cmRef.current = null;
     };
-  }, [editing]);
-
-  // Toggling edit mode swaps the rendered prose for the source editor (or back).
-  // Once layout has settled — after CodeMirror has mounted and grabbed focus —
-  // realign the anchored paragraph. Only runs when a toggle was user-initiated
-  // (scrollRef set in enter/leaveEdit), not on first render.
-  useEffect(() => {
-    const anchor = scrollRef.current;
-    if (!anchor) return;
-    scrollRef.current = null;
-    requestAnimationFrame(() => (editing ? restoreToEditor(anchor) : restoreToView(anchor)));
-  }, [editing]);
+  }, []);
 
   function cancel() {
-    // A new entry has no view to fall back to — head back to the entry view,
-    // confirming first if anything's been written so it isn't lost by accident.
-    if (isNew) {
-      const dirty = title.trim() || cmRef.current?.state.doc.toString().trim();
-      if (dirty && !window.confirm("Discard this new entry?")) return;
-      window.location.href = "/";
-      return;
-    }
-    setTitle(initialTitle);
-    setTags(parseTags(initialTags));
-    setAddingTag(false);
-    setTagDraft("");
-    setToast(null);
-    leaveEdit();
+    // Discard and head back — to the entry (edit) or home (new), confirming first
+    // if anything's been written/changed so it isn't lost by accident.
+    const body = cmRef.current?.state.doc.toString() ?? md;
+    const dirty = isNew
+      ? title.trim() || body.trim()
+      : body !== md || title !== initialTitle || serializeTags(tags) !== serializeTags(parseTags(initialTags));
+    const prompt = isNew ? "Discard this new entry?" : "Discard your changes?";
+    if (dirty && !window.confirm(prompt)) return;
+    window.location.href = entryHref;
   }
 
   // --- Tag editing ---------------------------------------------------------
@@ -356,7 +236,7 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
         r.onerror = () => reject(new Error("Could not read file"));
         r.readAsDataURL(file);
       });
-      const res = await fetch("/api/upload", {
+      const res = await fetch("/admin/api/upload", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ name: file.name, type: file.type, data }),
@@ -393,7 +273,7 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
       const payload = path
         ? { path, title: title.trim(), markdown: body, updated: localStamp(), tags: tagsStr }
         : { title: title.trim(), markdown: body, tags: tagsStr, ...(entryDate ? { date: entryDate } : {}) };
-      const res = await fetch("/api/publish", {
+      const res = await fetch("/admin/api/publish", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
@@ -408,14 +288,13 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
         msg: `${what} locally — commit and push to publish.`,
         url: data.commit || data.url,
       });
-      if (path) {
-        leaveEdit(); // editing an existing entry stays on its page
-        setBusy(false);
-      } else {
-        // A brand-new entry heads back to the main page once the toast has shown;
-        // keep `busy` set so the form can't be re-submitted while we navigate.
-        setTimeout(() => { window.location.href = "/"; }, 1400);
-      }
+      // Head to the entry once the toast has shown — an edit lands back on its own
+      // page, a brand-new entry on home. Editing an existing file writes over the
+      // one Astro already renders, so its /posts/<slug> page reflects the change;
+      // for a new entry `data.path` gives the freshly created slug. Keep `busy`
+      // set so the form can't be re-submitted while we navigate.
+      const dest = path ? entryHref : (data.path ? `/posts/${data.path.replace(/^src\/content\/posts\//, "").replace(/\.md$/, "")}/` : "/");
+      setTimeout(() => { window.location.href = dest; }, 1400);
     } catch (e) {
       setToast({ kind: "err", msg: e.message });
       setBusy(false);
@@ -428,7 +307,7 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
     setBusy(true);
     setToast(null);
     try {
-      const res = await fetch("/api/delete", {
+      const res = await fetch("/admin/api/delete", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ path, title: title.trim(), date: entryDate }),
@@ -447,11 +326,9 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
     }
   }
 
-  // The back-to-top button leads the floating toolbar in both modes; it only
-  // shows once scrolled. The divider that separates it from the action buttons
-  // therefore travels with the actions (rendered only when scrolled), so it's
-  // never left floating when back-to-top is absent — or absent entirely in a
-  // read-only build, whose view-mode toolbar has no action button after it.
+  // The back-to-top button leads the floating toolbar; it only shows once
+  // scrolled. The divider that separates it from the action buttons therefore
+  // travels with it, so it's never left floating when back-to-top is absent.
   const backToTop = scrolled && (
     <button className="fab-btn" onClick={toTop} aria-label="Back to top" title="Back to top">
       <Icon name="chevronUp" size={19} />
@@ -459,7 +336,7 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
   );
   const topDivider = scrolled && <div className="fab-divider" aria-hidden="true" />;
 
-  // Floating confirmation/error toast — rendered in both view and edit modes.
+  // Floating confirmation/error toast.
   const toastEl = toast && (
     <div className={`toast toast-${toast.kind}`} role="status" aria-live="polite">
       <span className="toast-msg">{toast.msg}</span>
@@ -475,53 +352,6 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
   // Lift the docked toolbar above the on-screen keyboard on mobile; otherwise it
   // rests at its CSS position.
   const fabStyle = fabBottom != null ? { bottom: `calc(1.25rem + ${fabBottom}px)` } : undefined;
-
-  // View mode: the static SSR entry is shown; we only float the edit affordance
-  // alongside it, so the control lives in the same place as the editing actions.
-  if (!editing) {
-    // Render the toolbar only when there's something in it — the edit/new actions
-    // when permitted, or just back-to-top once scrolled — never an empty bar.
-    const showFab = CAN_EDIT || CAN_CREATE || scrolled;
-    return (
-      <>
-        {showFab && (
-          <div className="editor-fab" role="toolbar" aria-label="Entry actions" style={fabStyle}>
-            {backToTop}
-            {(CAN_EDIT || CAN_CREATE) && (
-              <>
-                {/* Divider only when back-to-top precedes the action buttons. */}
-                {topDivider}
-                {CAN_EDIT && (
-                  <button className="fab-btn" onClick={enterEdit} aria-label="Edit entry" title="Edit entry">
-                    <Icon name="pencil" size={18} />
-                  </button>
-                )}
-                {/* New entry pre-dated to THIS entry's day (the filename's
-                    YYYY-MM-DD prefix, carried in `date`) — not today. The home
-                    heatmap opens the existing entry when you click a day that
-                    already has one, so this is the only way to add a *second*
-                    entry for that day. Falls back to today's date if `date` is
-                    somehow absent. Accent-filled to match the home + button;
-                    separated from the pencil by its own divider. */}
-                {CAN_EDIT && CAN_CREATE && <div className="fab-divider" aria-hidden="true" />}
-                {CAN_CREATE && (
-                  <a
-                    className="fab-btn fab-new"
-                    href={date ? `/posts/new?date=${date.slice(0, 10)}` : "/posts/new/"}
-                    aria-label="New entry for this day"
-                    title="New entry for this day"
-                  >
-                    <Icon name="plus" size={18} />
-                  </a>
-                )}
-              </>
-            )}
-          </div>
-        )}
-        {toastEl}
-      </>
-    );
-  }
 
   return (
     <div className="entry">

@@ -1,7 +1,7 @@
 ---
 import { getCollection, render } from 'astro:content';
 import Base from '../../../layouts/Base.astro';
-import EntryEditor from '../../../components/EntryEditor.jsx';
+import EntryActions from '../../../components/EntryActions.jsx';
 import EntryNav from '../../../components/EntryNav.jsx';
 import { SITE_NAME } from '../../../config.js';
 import { createdOf } from '../../../lib/created.js';
@@ -33,10 +33,11 @@ const tags = parseTags(post.data.tags);
 
 <Base title={post.data.title}>
   <h1 slot="brand"><a href={homeHref}>{ SITE_NAME }</a></h1>
-  {/* Static, server-rendered view. The editor hides this in place when editing.
-      `data-pagefind-body` scopes the search index to entry pages only — the home,
-      editor and login pages lack it, so Pagefind skips them. The h1 inside becomes
-      the result title; the created date is exposed as filterable/displayable meta. */}
+  {/* Static, server-rendered view — the only view of an entry now (editing lives
+      on /admin/posts/<slug>). `data-pagefind-body` scopes the search index to
+      entry pages only — the home and /admin editor pages lack it, so Pagefind
+      skips them. The h1 inside becomes the result title; the created date is
+      exposed as filterable/displayable meta. */}
   <div id="entry-view" data-pagefind-body>
     <div class="entry-bar">
       <h1 class="entry-h1" data-pagefind-meta="title">{post.data.title}</h1>
@@ -60,16 +61,10 @@ const tags = parseTags(post.data.tags);
     <div class="prose"><Content /></div>
   </div>
 
-  {/* Markdown source editor; renders only while editing (?edit). */}
-  <EntryEditor
-    markdown={post.body}
-    title={post.data.title}
-    date={created.toISOString()}
-    updated={updated ? updated.toISOString() : null}
-    path={`src/content/posts/${post.id}.md`}
-    tags={tags.join(", ")}
-    client:only="react"
-  />
+  {/* Read-view action bar (owner-only, dev): back-to-top + edit/new links. Edit
+      is a dedicated /admin/posts/<slug> route, not an in-place toggle, so this
+      page never loads the CodeMirror editor. `date` seeds the per-day + button. */}
+  <EntryActions slug={post.id} date={created.toISOString()} client:only="react" />
 
   {/* Prev/next is client-only, resolved at runtime from the per-year data, so the
       neighbour list isn't baked into this page's static HTML. */}

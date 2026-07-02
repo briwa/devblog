@@ -2,7 +2,7 @@ import { defineCollection, z } from 'astro:content';
 import { glob } from 'astro/loaders';
 
 // Each blog entry is a markdown file in src/content/posts/.
-// The /posts/new editor writes these files; Astro reads them at build time.
+// The /admin editor writes these files; Astro reads them at build time.
 const posts = defineCollection({
   loader: glob({ pattern: '**/*.md', base: './src/content/posts' }),
   schema: z.object({
