@@ -11,6 +11,7 @@ import "@fontsource/roboto-mono/latin-400-italic.css";
 import "@fontsource/roboto-mono/latin-700.css";
 import Icon from "../Icon.jsx";
 import { parseTags, serializeTags, tagClass, tagHref } from "../../lib/tags.js";
+import { loadDraft, saveDraft, clearDraft } from "../../lib/editorDraft.js";
 import { sandboxPreview } from "../../lib/sandboxPreview.js";
 import { CAN_DELETE } from "../../lib/permissions.js";
 import EntryDates from "../EntryDates.jsx";
@@ -56,13 +57,15 @@ const theme = EditorView.theme({
 });
 
 export default function EntryEditor({ markdown: md = "", title: initialTitle = "", date = null, updated = null, path = null, isNew = false, tags: initialTags = "", draft: initialDraft = false }) {
-  const [title, setTitle] = useState(initialTitle);
-  const [draft, setDraft] = useState(initialDraft);
-  const [tags, setTags] = useState(() => parseTags(initialTags));
+  const editorId = path || "new"; // the slot is keyed to this editor; opening another takes it over
+  const [restored] = useState(() => loadDraft(editorId));
+  const [title, setTitle] = useState(restored?.title ?? initialTitle);
+  const [draft, setDraft] = useState(restored?.draft ?? initialDraft);
+  const [tags, setTags] = useState(() => parseTags(restored?.tags ?? initialTags));
   const [addingTag, setAddingTag] = useState(false);
   const [tagDraft, setTagDraft] = useState("");
   const tagInputRef = useRef(null);
-  const [entryDate, setEntryDate] = useState(date);
+  const [entryDate, setEntryDate] = useState(restored?.entryDate ?? date);
   const [pickingDate, setPickingDate] = useState(false);
   const datePickerRef = useRef(null);
   const [busy, setBusy] = useState(false);
@@ -76,7 +79,7 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
   const entryHref = slug ? `/posts/${slug}/` : "/";
 
   useEffect(() => {
-    if (!isNew) return;
+    if (!isNew || restored?.entryDate) return;
     const d = new URLSearchParams(window.location.search).get("date");
     setEntryDate(d ? `${d}T12:00:00.000Z` : localStamp());
   }, []);
@@ -122,11 +125,46 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
     return () => clearTimeout(id);
   }, [toast]);
 
+  // Persist editor progress so an accidental reload/close doesn't lose it
+  const clearedRef = useRef(false); // stops a flush from resurrecting a discarded/saved draft
+  const persist = () => {
+    if (clearedRef.current) return;
+    const body = cmRef.current ? cmRef.current.state.doc.toString() : md;
+    if (isNew && !title.trim() && !body.trim() && !tags.length) {
+      clearDraft(); // an empty new entry leaves nothing to keep
+      return;
+    }
+    saveDraft(editorId, { title, body, tags: serializeTags(tags), draft, entryDate });
+  };
+  const persistRef = useRef(persist);
+  persistRef.current = persist;
+  const saveTimer = useRef(null);
+  const scheduleSave = () => {
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(persist, 600);
+  };
+  const scheduleSaveRef = useRef(scheduleSave);
+  scheduleSaveRef.current = scheduleSave;
+  const clearProgress = () => { clearedRef.current = true; clearTimeout(saveTimer.current); clearDraft(); };
+
+  const didMount = useRef(false);
+  useEffect(() => {
+    if (!didMount.current) { didMount.current = true; return; }
+    scheduleSave();
+  }, [title, tags, draft, entryDate]);
+
+  // Flush synchronously on unload — the debounce timer won't survive a reload
+  useEffect(() => {
+    const flush = () => persistRef.current();
+    window.addEventListener("pagehide", flush);
+    return () => { clearTimeout(saveTimer.current); window.removeEventListener("pagehide", flush); };
+  }, []);
+
   useEffect(() => {
     if (!hostRef.current) return;
     const view = new EditorView({
       state: EditorState.create({
-        doc: md,
+        doc: restored?.body ?? md,
         extensions: [
           history(),
           EditorView.lineWrapping,
@@ -138,6 +176,7 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
 
           EditorView.updateListener.of((u) => {
             if (!u.docChanged) return;
+            scheduleSaveRef.current();
             const c = u.view.coordsAtPos(u.view.state.selection.main.head);
             if (!c) return;
             const overflow = c.bottom - (window.innerHeight - HEADER_OFFSET);
@@ -153,6 +192,11 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
       view.destroy();
       cmRef.current = null;
     };
+  }, []);
+
+  // Opening a post claims the slot with its text right away; nothing to claim for an empty new entry
+  useEffect(() => {
+    if (!restored && !isNew) persist();
   }, []);
 
   function cancel() {
@@ -175,6 +219,7 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
 
     const prompt = isNew ? "Discard this new entry?" : "Discard your changes?";
     if (dirty && !window.confirm(prompt)) return;
+    clearProgress();
     window.location.href = exitHref({ wasDraft: !isNew && initialDraft, savedPath: null, entryHref, isDev: import.meta.env.DEV });
   }
 
@@ -260,6 +305,7 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `Save failed (${res.status})`);
+      clearProgress();
 
       const named = autoTitle && data.title ? ` as “${data.title}”` : "";
       const what = (path ? "Changes saved" : "Entry saved") + named;
@@ -290,6 +336,7 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `Delete failed (${res.status})`);
+      clearProgress();
       setToast({
         kind: "ok",
         msg: "Entry deleted locally — commit and push to apply.",
