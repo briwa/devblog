@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CAN_CREATE, CAN_EDIT } from "../lib/permissions.js";
 import { fmtDay, fmtMonthYear } from "../lib/dates.js";
+import PostRow from "./PostRow.jsx";
 
 const PAGE_SIZE = 8;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -188,17 +189,7 @@ export default function Archive() {
         <>
           <div className="ar-list">
             {pageItems.map((e) => (
-              <a className="ar-row" key={e.id} href={`/posts/${e.id}/`}>
-                <span className="ar-row-main">
-                  <span className="ar-row-title">{e.title}</span>
-                  {e.tags?.length > 0 && (
-                    <span className="hashtags ar-row-tags">
-                      {e.tags.map((tag) => <span className="hashtag" key={tag}>#{tag}</span>)}
-                    </span>
-                  )}
-                </span>
-                <span className="ar-row-date">{fmtDay(e.iso)}</span>
-              </a>
+              <PostRow key={e.id} href={`/posts/${e.id}/`} title={e.title} tags={e.tags} date={fmtDay(e.iso)} />
             ))}
           </div>
 

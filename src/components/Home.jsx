@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { fmtDay, fmtFull } from "../lib/dates.js";
-import { tagHref } from "../lib/tags.js";
+import Hashtags from "./Hashtags.jsx";
 
 function Cover({ cover }) {
   if (!cover) return null;
@@ -63,13 +63,7 @@ export default function Home() {
             <a className="jr-spot-more" href={`/posts/${spotlight.id}/`}>More →</a>
           </p>
         )}
-        {spotlight.tags?.length > 0 && (
-          <div className="hashtags jr-spot-tags">
-            {spotlight.tags.map((tag) => (
-              <a className="hashtag" key={tag} href={tagHref(tag)}>#{tag}</a>
-            ))}
-          </div>
-        )}
+        <Hashtags tags={spotlight.tags} max={6} link className="jr-spot-tags" />
       </article>
 
       {recent.length > 0 && (
@@ -88,11 +82,7 @@ export default function Home() {
                   <p className="jr-card-excerpt">{e.excerpt}</p>
                 )}
                 <span className="jr-card-title">{e.title}</span>
-                {e.tags?.length > 0 && (
-                  <span className="hashtags jr-card-tags">
-                    {e.tags.map((tag) => <span className="hashtag" key={tag}>#{tag}</span>)}
-                  </span>
-                )}
+                <Hashtags tags={e.tags} max={3} className="jr-card-tags" />
                 <span className="jr-card-date">{fmtDay(e.iso)}</span>
               </a>
             ))}
