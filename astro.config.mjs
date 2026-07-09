@@ -1,6 +1,6 @@
 import { defineConfig } from 'astro/config';
 import react from '@astrojs/react';
-import { mkdir, readdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { access, mkdir, readdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { unified } from '@astrojs/markdown-remark';
 import { remarkStripHtml } from './src/lib/remarkStripHtml.js';
@@ -15,10 +15,10 @@ import {
   frontmatterTitle,
   frontmatterUpdated,
   isValidPostPath,
+  isValidUploadPath,
   parseTags,
-  slugify,
-  uploadFilename,
-  withDate,
+  uniquePostPath,
+  uploadRefs,
 } from './src/lib/publish.js';
 // Shared with the real /data endpoints; kept astro:content-free so this Vite config can import it.
 import { entrySummary, published, yearsOf } from './src/lib/entryData.js';
@@ -41,6 +41,7 @@ function devPublish() {
     apply: 'serve',
     configureServer(server) {
       const root = () => server.config.root;
+      const fileExists = (p) => access(p).then(() => true, () => false);
 
       // astro dev never serves dist/, so mirror the Pagefind index from disk (else search 404s).
       server.middlewares.use('/pagefind', async (req, res, next) => {
@@ -132,31 +133,28 @@ function devPublish() {
             wasEmpty = existing.length === 0;
           }
 
-          const iso = body.date || new Date().toISOString();
-          // A date change is a rename: the creation day lives in the filename (write new, unlink old).
           const srcPath = editing ? body.path : null;
-          // Confine writes to the posts dir — an unvalidated body.path is an arbitrary file write (dev has no auth).
-          if (editing && !isValidPostPath(srcPath)) throw new Error('Invalid path');
-          let path;
-          let renameFrom = null;
+          const existing = editing ? await readFile(join(root(), srcPath), 'utf8').catch(() => '') : '';
+
+          const exists = (p) => fileExists(join(root(), p));
+          let path, renameFrom = null;
           if (!editing) {
-            path = `src/content/posts/${iso.slice(0, 10)}-${slugify(title)}.md`;
+            const iso = body.date || new Date().toISOString();
+            path = await uniquePostPath(iso, title, exists);
           } else {
-            // A new day swaps the filename's date prefix; withDate returns srcPath unchanged for a same-day save.
-            path = body.date ? withDate(srcPath, body.date.slice(0, 10)) : srcPath;
-            if (!isValidPostPath(path)) throw new Error('Invalid path');
-            if (path !== srcPath) {
-              // Don't clobber another entry that already sits on the target day.
-              const clash = await readFile(join(root(), path), 'utf8').catch(() => null);
-              if (clash !== null) throw new Error('An entry already exists on that date');
-              renameFrom = srcPath;
+            if (!isValidPostPath(srcPath)) throw new Error('Invalid path');
+            const curDay = srcPath.slice(srcPath.lastIndexOf('/') + 1, srcPath.lastIndexOf('/') + 11);
+            const destDay = body.date ? body.date.slice(0, 10) : curDay;
+            path = srcPath;
+            if (destDay !== curDay || title !== frontmatterTitle(existing)) {
+              const dest = await uniquePostPath(`${destDay}T00:00:00.000Z`, title, (p) => p !== srcPath && exists(p));
+              if (dest !== srcPath) { renameFrom = srcPath; path = dest; }
             }
           }
 
           // Honour the editor's explicit tags; if absent (older client), preserve existing so an edit never drops them.
           const explicitTags =
             typeof body.tags === 'string' || Array.isArray(body.tags) ? parseTags(body.tags) : null;
-          const existing = editing ? await readFile(join(root(), srcPath), 'utf8').catch(() => '') : '';
           const tags = explicitTags !== null ? explicitTags : (editing ? parseTags(frontmatterTags(existing)) : []);
           const tagsLine = tags.length ? `tags: ${JSON.stringify(tags.join(', '))}\n` : '';
 
@@ -168,9 +166,24 @@ function devPublish() {
           // Editing stamps a fresh `updated` (client sends local wall-clock worn with a Z); new entries have none.
           const updatedLine = editing ? `updated: ${body.updated || new Date().toISOString()}\n` : '';
           const file = `---\ntitle: ${JSON.stringify(title)}\n${tagsLine}${draftLine}${updatedLine}---\n\n${markdown}\n`;
+
+          const referenced = new Set(uploadRefs(markdown));
+          const uploadsDir = join(root(), 'public', 'uploads');
+          for (const img of Array.isArray(body.images) ? body.images : []) {
+            if (!img || typeof img.path !== 'string' || typeof img.data !== 'string') continue;
+            if (!isValidUploadPath(img.path)) throw new Error('Invalid image path');
+            if (!referenced.has(img.path.slice('public/uploads/'.length))) continue;
+            await mkdir(uploadsDir, { recursive: true });
+            await writeFile(join(root(), img.path), Buffer.from(img.data, 'base64'));
+          }
           await writeFile(join(root(), path), file, 'utf8');
           // Complete the rename: drop the old file, after the successful write, never before.
           if (renameFrom) await unlink(join(root(), renameFrom));
+          if (editing) {
+            for (const name of uploadRefs(existing)) {
+              if (!referenced.has(name)) await unlink(join(uploadsDir, name)).catch(() => {});
+            }
+          }
           sendJson(res, 200, { ok: true, path, title, edited: editing });
 
           // First-ever entry: restart so Astro re-syncs the collection — after responding, so the editor still gets its toast.
@@ -189,28 +202,17 @@ function devPublish() {
           const body = await readBody(req);
           const path = body.path || '';
           if (!isValidPostPath(path)) throw new Error('Invalid path');
+          const existing = await readFile(join(root(), path), 'utf8').catch(() => '');
           await unlink(join(root(), path));
+          for (const name of uploadRefs(existing)) {
+            await unlink(join(root(), 'public', 'uploads', name)).catch(() => {});
+          }
           sendJson(res, 200, { ok: true });
         } catch (e) {
           sendJson(res, 500, { error: e.message });
         }
       });
 
-      server.middlewares.use('/admin/api/upload', async (req, res, next) => {
-        if (req.method !== 'POST') return next();
-        try {
-          const body = await readBody(req);
-          if (!body.data) throw new Error('No file data');
-          const filename = uploadFilename(body.name, body.type);
-          if (!filename) throw new Error('Unsupported image type (png, jpg, gif, webp, avif)');
-          const dir = join(root(), 'public', 'uploads');
-          await mkdir(dir, { recursive: true });
-          await writeFile(join(dir, filename), Buffer.from(body.data, 'base64'));
-          sendJson(res, 200, { url: `/uploads/${filename}` });
-        } catch (e) {
-          sendJson(res, 500, { error: e.message });
-        }
-      });
     },
   };
 }

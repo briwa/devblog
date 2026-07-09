@@ -34,6 +34,13 @@ export function slugify(s, max = 60, fallback = 'entry') {
   );
 }
 
+export async function uniquePostPath(iso, title, exists) {
+  const base = `src/content/posts/${iso.slice(0, 10)}-${slugify(title)}`;
+  let path = `${base}.md`;
+  for (let n = 2; await exists(path); n++) path = `${base}-${n}.md`;
+  return path;
+}
+
 // --- Upload allow-list ------------------------------------------------------
 // Raster only. SVG is excluded: it's active content (<script>) served from our own
 // origin, so allowing it would be a stored-XSS vector.
@@ -53,6 +60,23 @@ export function uploadFilename(name = 'image', type = '') {
   if (!ALLOWED_UPLOAD_EXTS.has(ext)) return null;
   const base = slugify(name.replace(/\.[^.]*$/, ''), 40, 'image');
   return `${base}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
+}
+
+export function isValidUploadPath(path) {
+  return (
+    typeof path === 'string' &&
+    path.startsWith('public/uploads/') &&
+    !path.includes('..') &&
+    ALLOWED_UPLOAD_EXTS.has(path.slice(path.lastIndexOf('.') + 1).toLowerCase())
+  );
+}
+
+export function uploadRefs(text) {
+  const refs = new Set();
+  const re = /\/uploads\/([A-Za-z0-9._-]+)/g;
+  let m;
+  while ((m = re.exec(text || ''))) refs.add(m[1]);
+  return [...refs];
 }
 
 // --- Frontmatter readers ----------------------------------------------------

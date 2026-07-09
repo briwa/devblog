@@ -11,6 +11,7 @@ import "@fontsource/roboto-mono/latin-400-italic.css";
 import "@fontsource/roboto-mono/latin-700.css";
 import Icon from "../Icon.jsx";
 import { parseTags, serializeTags, tagClass, tagHref } from "../../lib/tags.js";
+import { uploadFilename } from "../../lib/publish.js";
 import { loadDraft, saveDraft, clearDraft } from "../../lib/editorDraft.js";
 import { sandboxPreview } from "../../lib/sandboxPreview.js";
 import { CAN_DELETE } from "../../lib/permissions.js";
@@ -75,6 +76,7 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
   const hostRef = useRef(null);
   const cmRef = useRef(null);
   const fileRef = useRef(null);
+  const uploadsRef = useRef(new Map());
   const slug = path ? slugFromPath(path) : null;
   const entryHref = slug ? `/posts/${slug}/` : "/";
 
@@ -257,9 +259,13 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
     const file = e.target.files?.[0];
     e.target.value = ""; // allow re-picking the same file
     if (!file) return;
-    setBusy(true);
     setToast(null);
-
+    const filename = uploadFilename(file.name, file.type);
+    if (!filename) {
+      setToast({ kind: "err", msg: "Unsupported image type (png, jpg, gif, webp, avif)" });
+      return;
+    }
+    setBusy(true);
     try {
       const data = await new Promise((resolve, reject) => {
         const r = new FileReader();
@@ -267,14 +273,8 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
         r.onerror = () => reject(new Error("Could not read file"));
         r.readAsDataURL(file);
       });
-      const res = await fetch("/admin/api/upload", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: file.name, type: file.type, data }),
-      });
-      const d = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(d.error || `Upload failed (${res.status})`);
-      insertAtCursor(`![](${d.url})`);
+      uploadsRef.current.set(`public/uploads/${filename}`, data);
+      insertAtCursor(`![](/uploads/${filename})`);
     } catch (err) {
       setToast({ kind: "err", msg: err.message });
     } finally {
@@ -298,6 +298,7 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
       const payload = path
         ? { path, title: title.trim(), markdown: body, updated: localStamp(), tags: tagsStr, draft, ...(dateChanged ? { date: entryDate } : {}) }
         : { title: title.trim(), markdown: body, tags: tagsStr, draft, ...(entryDate ? { date: entryDate } : {}) };
+      payload.images = [...uploadsRef.current].map(([p, data]) => ({ path: p, data }));
       const res = await fetch("/admin/api/publish", {
         method: "POST",
         headers: { "content-type": "application/json" },
