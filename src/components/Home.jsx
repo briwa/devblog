@@ -42,21 +42,28 @@ export default function Home() {
 
   return (
     <div className="journal">
-      <article className="jr-spotlight">
-        <a className="jr-spot-card" href={`/posts/${spotlight.id}/`}>
-          <div
-            className={`jr-cover jr-spot-cover${spotlight.cover ? "" : " is-empty"}`}
-            onMouseEnter={(e) => play(e.currentTarget, true)}
-            onMouseLeave={(e) => play(e.currentTarget, false)}
-          >
-            <Cover cover={spotlight.cover} />
-            <div className="jr-cover-shade" />
-            <div className="jr-spot-meta">
-              <div className="jr-eyebrow">{fmtFull(spotlight.iso)}</div>
-              <h2 className="jr-spot-title">{spotlight.title}</h2>
+      <article className={`jr-spotlight${spotlight.cover ? "" : " is-textonly"}`}>
+        {spotlight.cover ? (
+          <a className="jr-spot-card" href={`/posts/${spotlight.id}/`}>
+            <div
+              className="jr-cover jr-spot-cover"
+              onMouseEnter={(e) => play(e.currentTarget, true)}
+              onMouseLeave={(e) => play(e.currentTarget, false)}
+            >
+              <Cover cover={spotlight.cover} />
+              <div className="jr-cover-shade" />
+              <div className="jr-spot-meta">
+                <div className="jr-eyebrow">{fmtFull(spotlight.iso)}</div>
+                <h2 className="jr-spot-title">{spotlight.title}</h2>
+              </div>
             </div>
-          </div>
-        </a>
+          </a>
+        ) : (
+          <a className="jr-spot-head" href={`/posts/${spotlight.id}/`}>
+            <div className="jr-eyebrow">{fmtFull(spotlight.iso)}</div>
+            <h2 className="jr-spot-title">{spotlight.title}</h2>
+          </a>
+        )}
         {spotlight.excerpt && (
           <p className="jr-spot-excerpt">
             {spotlight.excerpt}{" "}

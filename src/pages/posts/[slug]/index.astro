@@ -21,9 +21,6 @@ export async function getStaticPaths() {
 const { post } = Astro.props;
 const { Content } = await render(post);
 
-// Carries the post's year so home restores that year's context.
-const homeHref = `/?year=${post.id.slice(0, 4)}`;
-
 const created = createdOf(post);
 const updated = post.data.updated;
 
@@ -31,7 +28,7 @@ const tags = parseTags(post.data.tags);
 ---
 
 <Base title={post.data.title}>
-  <h1 slot="brand"><a href={homeHref}>{ SITE_NAME }</a></h1>
+  <h1 slot="brand"><a href="/">{ SITE_NAME }</a></h1>
   {/* `data-pagefind-body` scopes the search index to entry pages only. */}
   <div id="entry-view" data-pagefind-body>
     <div class="entry-bar">
@@ -58,7 +55,7 @@ const tags = parseTags(post.data.tags);
   {/* Prev/next resolved on the client so the neighbour list isn't baked into the HTML. */}
   <EntryNav id={post.id} client:only="react" />
 
-  <a class="back" href={homeHref}>← { SITE_NAME }</a>
+  <a class="back" href="/">← { SITE_NAME }</a>
 
   {/* Full-screen image viewer: clicking any prose image opens it here. Hidden until opened. */}
   <div id="lightbox" class="lightbox" aria-hidden="true">

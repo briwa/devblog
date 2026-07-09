@@ -641,6 +641,11 @@ iframe.jr-cover-media { pointer-events: none; background: var(--bg); }
   font-size: 1.85rem; line-height: 1.15; font-weight: 600; letter-spacing: -0.015em;
   margin: 0; color: #fff; text-shadow: 0 1px 12px rgba(0, 0, 0, 0.35);
 }
+/* No cover: drop the image frame and lay the title/excerpt out as plain text. */
+.jr-spot-head { display: block; text-decoration: none; }
+.jr-spotlight.is-textonly .jr-eyebrow { color: var(--muted); }
+.jr-spotlight.is-textonly .jr-spot-title { color: var(--ink); text-shadow: none; }
+.jr-spotlight.is-textonly .jr-spot-excerpt { margin-top: 0.9rem; }
 .jr-spot-excerpt { font-size: 1rem; line-height: 1.72; color: var(--muted); margin: 1.35rem 0 0; max-width: 60ch; }
 .jr-spot-more { font-size: 0.78rem; color: var(--accent); white-space: nowrap; text-decoration: none; }
 .jr-spot-more:hover { text-decoration: underline; }
@@ -724,11 +729,11 @@ iframe.jr-cover-media { pointer-events: none; background: var(--bg); }
   position: relative;
   display: flex; align-items: center; justify-content: space-between; gap: 1rem;
   padding: 1rem 0.75rem; margin: 0 -0.75rem;
-  border-bottom: 1px solid var(--rule); border-radius: 6px;
+  border-bottom: 1px solid var(--rule);
   text-decoration: none; cursor: pointer; transition: background 0.12s;
 }
 .ar-row:hover { background: var(--hover-bg); }
-.ar-row-link { position: absolute; inset: 0; z-index: 1; border-radius: 6px; }
+.ar-row-link { position: absolute; inset: 0; z-index: 1; }
 .ar-row a.hashtag { position: relative; z-index: 2; }
 .ar-row-title { font-size: 0.95rem; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ar-row-date { font-size: 0.82rem; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
