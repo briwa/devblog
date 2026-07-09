@@ -1,0 +1,10 @@
+---
+import Base from '../layouts/Base.astro';
+import Archive from '../components/Archive.jsx';
+import JournalNav from '../components/JournalNav.jsx';
+---
+
+<Base>
+  <JournalNav slot="brand" current="archive" client:only="react" />
+  <Archive client:only="react" />
+</Base>

@@ -19,11 +19,6 @@ export function serializeTags(tags) {
   return parseTags(tags).join(", ");
 }
 
-// Tags are intentionally uncolored — one neutral chip, not a per-name color.
-export function tagClass() {
-  return "tag";
-}
-
 export function tagHref(name) {
-  return `/?tag=${encodeURIComponent(name)}`;
+  return `/archive?tag=${encodeURIComponent(name)}`;
 }

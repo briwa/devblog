@@ -10,7 +10,7 @@ import "@fontsource/roboto-mono/latin-400.css";
 import "@fontsource/roboto-mono/latin-400-italic.css";
 import "@fontsource/roboto-mono/latin-700.css";
 import Icon from "../Icon.jsx";
-import { parseTags, serializeTags, tagClass, tagHref } from "../../lib/tags.js";
+import { parseTags, serializeTags, tagHref } from "../../lib/tags.js";
 import { uploadFilename } from "../../lib/publish.js";
 import { loadDraft, saveDraft, clearDraft } from "../../lib/editorDraft.js";
 import { sandboxPreview } from "../../lib/sandboxPreview.js";
@@ -389,13 +389,13 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
         />
       </div>
       <div className="entry-meta-block">
-      <ul className="entry-tags entry-tags-edit" aria-label="Tags">
+      <ul className="hashtags hashtags-edit" aria-label="Tags">
         {tags.map((tag) => (
-          <li key={tag} className={tagClass(tag)} title={tag}>
-            <a className="tag-label" href={tagHref(tag)}>{tag}</a>
+          <li key={tag} className="hashtag-chip" title={tag}>
+            <a className="hashtag" href={tagHref(tag)}>#{tag}</a>
             <button
               type="button"
-              className="tag-x"
+              className="hashtag-x"
               onClick={() => removeTag(tag)}
               aria-label={`Remove tag ${tag}`}
             >
@@ -404,10 +404,10 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
           </li>
         ))}
         {addingTag ? (
-          <li className="tag-add-field">
+          <li>
             <input
               ref={tagInputRef}
-              className="tag-input"
+              className="hashtag-input"
               placeholder="tag…"
               value={tagDraft}
               onChange={(e) => setTagDraft(e.target.value)}
@@ -419,13 +419,13 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
           <li>
             <button
               type="button"
-              className="tag-add"
+              className="hashtag-add"
               onClick={() => setAddingTag(true)}
               aria-label="Add tag"
               title="Add tag"
             >
-              <Icon name="plus" size={13} />
-              {tags.length === 0 && <span className="tag-add-label">Tag</span>}
+              <Icon name="plus" size={12} />
+              {tags.length === 0 && <span>Tag</span>}
             </button>
           </li>
         )}

@@ -168,7 +168,7 @@ export function buildVueSrcdoc({ w, h, bg }, code, { externals = [], components 
 }
 
 // Build one figure's inner document. Returns the RAW string (callers escape it) — keep attribute-agnostic, or it double-encodes.
-export function buildSrcdoc({ preset, w, h, bg, auto }, code, prelude = '', externals = []) {
+export function buildSrcdoc({ preset, w, h, bg, auto, hover }, code, prelude = '', externals = []) {
   const isCanvas = preset === 'canvas';
   // The emitted boilerplate is TERSE on purpose — it's inlined into every srcdoc, so its comments/indentation would ship verbatim.
   // `root` is a bare sized mount point so a container-owning library (Konva, Pts, Pixi) can take it directly.
@@ -191,7 +191,7 @@ export function buildSrcdoc({ preset, w, h, bg, auto }, code, prelude = '', exte
     .join('');
 
   // canvas/root default to PAUSED behind an in-frame play button (spares rAF, and behaves identically on page + editor preview).
-  const deferred = (isCanvas || isRoot) && !auto;
+  const deferred = (isCanvas || isRoot) && !auto && !hover;
   const playBtn = deferred
     ? `<button id="__play" type="button" aria-label="Run figure"><svg viewBox="0 0 100 100" width="30" height="30" aria-hidden="true"><polygon points="38,28 38,72 74,50" fill="currentColor"/></svg></button>`
     : '';
@@ -204,26 +204,38 @@ export function buildSrcdoc({ preset, w, h, bg, auto }, code, prelude = '', exte
   const bgCss = bg ? `body{background:${bg}}` : '';
 
   // Size #root to WxH so a mounted library has real dimensions; relative anchors its children, max-width avoids overflow.
-  const rootCss = isRoot ? `#root{position:relative;width:${w}px;height:${h}px;max-width:100%}` : '';
+  const rootCss = isRoot
+    ? (hover ? `#root{position:relative;width:100%;height:100%}` : `#root{position:relative;width:${w}px;height:${h}px;max-width:100%}`)
+    : '';
 
-  const css = `html,body{margin:0}${bgCss}${rootCss}canvas,svg{display:block;max-width:100%;height:auto}.err{color:#c0392b;white-space:pre-wrap;font:12px/1.5 ui-monospace,monospace;padding:.75rem}${playCss}`;
+  // hover covers fill the frame (already sized to the figure's aspect), so the media leaves no gap.
+  const media = hover
+    ? `html,body{height:100%}canvas,svg{display:block;width:100%;height:100%}`
+    : `canvas,svg{display:block;max-width:100%;height:auto}`;
+  const css = `html,body{margin:0}${bgCss}${rootCss}${media}.err{color:#c0392b;white-space:pre-wrap;font:12px/1.5 ui-monospace,monospace;padding:.75rem}${playCss}`;
 
   // prelude/code sit on their own lines in run() so a trailing `//` in the author's source can't comment out the closing brace.
   const loadExt = fetched.length
     ? `const __fx=[${fetched.map((u) => JSON.stringify(u)).join(',')}];` +
       `const start=()=>__fx.reduce((p,u)=>p.then(()=>fetch(u)).then(r=>{if(!r.ok)throw new Error('external-lib '+u+' failed: HTTP '+r.status);return r.text()}).then(t=>{const s=document.createElement('script');s.textContent=t;document.head.appendChild(s)}),Promise.resolve()).then(run,e=>{document.body.innerHTML='<pre class=err>'+(e&&e.stack||e)+'</pre>';report()});`
     : `const start=run;`;
+  // hover: draw the first frame and freeze; the parent postMessages {__figplay} to run/pause the loop.
+  const loopDef = hover
+    ? `let __fn=null,__raf=null;const loop=(fn)=>{__fn=fn;fn(0)};`
+    : `const loop=(fn)=>{let id;const t=(ts)=>{fn(ts);id=requestAnimationFrame(t)};id=requestAnimationFrame(t);return ()=>cancelAnimationFrame(id)};`;
+  const tail = deferred
+    ? `const __play=document.getElementById('__play'),__c=getComputedStyle(document.body).backgroundColor.match(/[\\d.]+/g);if(__c&&(__c.length<4||+__c[3]>0)&&(0.299*__c[0]+0.587*__c[1]+0.114*__c[2])<128)__play.classList.add('on-dark');__play.addEventListener('click',()=>{__play.remove();start()});report();`
+    : hover
+      ? `start();addEventListener('message',function(e){if(!__fn)return;if(e.data&&e.data.__figplay){if(__raf==null){var _t=function(ts){__fn(ts);__raf=requestAnimationFrame(_t)};__raf=requestAnimationFrame(_t)}}else if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}});`
+      : `start();`;
   const script =
     setup +
-    `const loop=(fn)=>{let id;const t=(ts)=>{fn(ts);id=requestAnimationFrame(t)};id=requestAnimationFrame(t);return ()=>cancelAnimationFrame(id)};` +
+    loopDef +
     `const report=()=>parent.postMessage({__sandboxHeight:document.documentElement.scrollHeight},'*');` +
     `new ResizeObserver(report).observe(document.documentElement);` +
     `const run=()=>{try{\n${prelude}\n${code}\n}catch(e){document.body.innerHTML='<pre class=err>'+(e&&e.stack||e)+'</pre>'}report()};` +
     loadExt +
-    // Deferred figures pick a contrasting play-button palette from the computed bg (works for any CSS color without parsing).
-    (deferred
-      ? `const __play=document.getElementById('__play'),__c=getComputedStyle(document.body).backgroundColor.match(/[\\d.]+/g);if(__c&&(__c.length<4||+__c[3]>0)&&(0.299*__c[0]+0.587*__c[1]+0.114*__c[2])<128)__play.classList.add('on-dark');__play.addEventListener('click',()=>{__play.remove();start()});report();`
-      : `start();`);
+    tail;
 
   return `<!doctype html><html><head><meta charset="utf-8"><style>${css}</style></head><body>${surface}${playBtn}${ext}<script>${script}</script></body></html>`;
 }

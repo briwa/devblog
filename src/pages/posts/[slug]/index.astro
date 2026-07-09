@@ -5,7 +5,7 @@ import EntryActions from '../../../components/EntryActions.jsx';
 import EntryNav from '../../../components/EntryNav.jsx';
 import { SITE_NAME } from '../../../config.js';
 import { createdOf } from '../../../lib/created.js';
-import { parseTags, tagClass, tagHref } from '../../../lib/tags.js';
+import { parseTags, tagHref } from '../../../lib/tags.js';
 import { published } from '../../../lib/entryData.js';
 import { EDITING_ENABLED } from '../../../lib/permissions.js';
 import EntryDates from '../../../components/EntryDates.jsx';
@@ -41,9 +41,9 @@ const tags = parseTags(post.data.tags);
       {tags.length > 0 && (
         // data-pagefind-ignore: tags sit inside the indexed body, so without this
         // their text would leak into search excerpts and match queries.
-        <ul class="entry-tags" aria-label="Tags" data-pagefind-ignore>
+        <ul class="hashtags" aria-label="Tags" data-pagefind-ignore>
           {tags.map((tag) => (
-            <li><a class={tagClass(tag)} href={tagHref(tag)} title={tag}><span class="tag-label">{tag}</span></a></li>
+            <li><a class="hashtag" href={tagHref(tag)} title={tag}>#{tag}</a></li>
           ))}
         </ul>
       )}

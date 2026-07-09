@@ -87,146 +87,16 @@ a:hover { text-decoration: none; }
 .entry-updated { font-style: italic; opacity: 0.8; }
 .entry-updated::before { content: "·"; margin-right: 0.5rem; font-style: normal; opacity: 0.7; }
 
-.hm-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.75rem; }
-.hm-total { color: var(--muted); font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.4rem; }
 .hm-sep { color: var(--rule); }
 .hm-new { color: var(--accent); font-weight: inherit; }
 .hm-new:hover { text-decoration: underline; }
-.hm-years { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; }
-/* Custom dropdown (YearDropdown.jsx), not a native <select>, so it can match the UI. */
-.year-dd { position: relative; }
-.year-dd-trigger {
-  display: inline-flex; align-items: center; gap: 0.3rem;
-  background: none; border: 1px solid var(--rule); border-radius: 6px;
-  color: var(--ink); font: inherit; font-size: 0.85rem; padding: 0.15rem 0.5rem;
-  cursor: pointer; font-variant-numeric: tabular-nums;
-}
-.year-dd-trigger:hover { border-color: var(--accent); }
-.year-dd-trigger svg { color: var(--muted); }
-/* max-height + scroll keeps a long archive from running off-screen. */
-.year-dd-menu {
-  position: absolute; top: calc(100% + 4px); left: 0; z-index: 20;
-  margin: 0; padding: 0.25rem; list-style: none; min-width: 100%;
-  background: var(--bg); border: 1px solid var(--rule); border-radius: 8px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
-  max-height: 15rem; overflow-y: auto;
-}
-.year-dd-menu li { margin: 0; }
-.year-dd-menu button {
-  display: block; width: 100%; text-align: left;
-  background: none; border: none; border-radius: 5px;
-  color: var(--ink); font: inherit; font-size: 0.85rem; padding: 0.25rem 0.6rem;
-  cursor: pointer; font-variant-numeric: tabular-nums;
-}
-.year-dd-menu button:hover { background: var(--rule); }
-.year-dd-menu button.active { color: #fff; background: var(--accent); }
-.hm-drafts { align-self: center; color: var(--muted); font-size: 0.8rem; text-decoration: none; }
+.hm-drafts { color: var(--muted); font-size: 0.8rem; text-decoration: none; }
 .hm-drafts:hover { color: var(--accent); }
-.hm-cal { overflow-x: auto; color: var(--muted); font-size: 0.8rem; }
-.hm-cal text { fill: var(--muted); }
-.hm-cal .react-activity-calendar__count { color: var(--muted); }
-/* Flip the whole SVG so it reads newest→oldest (Dec left, Jan right); month labels
-   and the weekday gutter are counter-flipped about the same view-box centre so they
-   stay upright as the calendar width changes with the data. */
-.hm-cal svg { transform: scaleX(-1); transform-box: view-box; transform-origin: center; }
-.hm-cal svg .react-activity-calendar__legend-month text {
-  transform: scaleX(-1); transform-box: fill-box; transform-origin: center;
-}
-.hm-cal svg .react-activity-calendar__legend-weekday {
-  transform: scaleX(-1); transform-box: view-box; transform-origin: center;
-}
 
-.cal-tip {
-  position: fixed;
-  z-index: 40;
-  transform: translate(-50%, calc(-100% - 8px));
-  pointer-events: none;
-  max-width: 18rem;
-  padding: 0.45rem 0.6rem;
-  font-size: 0.78rem;
-  line-height: 1.4;
-  color: var(--ink);
-  background: var(--bg);
-  border: 1px solid var(--rule);
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-  animation: toast-in 0.12s ease-in-out;
-}
-.cal-tip-date { font-weight: 600; font-variant-numeric: tabular-nums; }
-.cal-tip-list { margin: 0.2rem 0 0; padding-left: 1.1rem; }
-.cal-tip-list li { margin-top: 0.05rem; }
-
-/* Reserve a full-page height so the loading skeleton and real content don't shift
-   the layout when the year JSON lands. Keep in sync with PAGE_SIZE / row padding in Home.jsx. */
-.month-region { --ml-row: 3.05rem; margin-top: 2.5rem; min-height: calc(var(--ml-row) * 12 + 4rem); }
-/* Drafts list has no heatmap above and its own loading text, so it needs neither. */
-.admin-drafts .month-region { margin-top: 0; min-height: 0; }
-.month-list { list-style: none; margin: 0; padding: 0; }
-.month-list li { border-top: 1px solid var(--rule); }
-.month-list li:last-child { border-bottom: 1px solid var(--rule); }
-.month-list a {
-  display: flex; align-items: center; gap: 0.6rem;
-  height: var(--ml-row, 3.05rem); padding: 0.7rem 0; color: var(--ink); text-decoration: none;
-}
-.month-list a:hover .ml-title { color: var(--accent); }
-/* Title shrinks (and ellipsises) before the tags do. */
-.ml-title { flex: 0 1 auto; min-width: 2rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ml-date { margin-left: auto; padding-left: 0.6rem; color: var(--muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0; }
-
-/* The tag group never shrinks (the title does); each chip ellipsises if long. */
-.ml-tags { display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0; }
-.ml-tags .tag { max-width: 7rem; }
-.ml-more { position: relative; color: var(--muted); font-size: 0.72rem; white-space: nowrap; cursor: default; outline: none; }
-.ml-more-pop {
-  position: absolute; right: 0; top: calc(100% + 6px); z-index: 20;
-  display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.35rem;
-  max-width: 16rem; padding: 0.5rem; border-radius: 8px;
-  background: var(--bg); border: 1px solid var(--rule);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-  /* Shown via .open (MoreTags manages it in JS); visibility trails the fade so it's not clickable once hidden. */
-  opacity: 0; visibility: hidden; transform: translateY(-3px);
-  transition: opacity 0.13s ease, transform 0.13s ease, visibility 0s linear 0.13s;
-}
-.ml-more-pop.open {
-  opacity: 1; visibility: visible; transform: translateY(0);
-  transition: opacity 0.13s ease, transform 0.13s ease, visibility 0s;
-}
-/* Transparent bridge over the 6px gap so the pointer never crosses dead space to the popup. */
-.ml-more::after { content: ""; position: absolute; right: 0; top: 100%; width: 3.5rem; height: 8px; }
-.ml-more-pop .tag { max-width: 14rem; }
-/* On phones a hover tooltip is awkward and the row is tight — drop the inline tags. */
-@media (max-width: 34rem) {
-  .ml-tags { display: none; }
-}
-.month-empty { color: var(--muted); margin-top: 2.5rem; }
-
-/* Same row rhythm as .month-list so real entries don't shift the layout on arrival. */
-.month-skeleton .sk-row {
-  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-  height: var(--ml-row, 3.05rem); padding: 0.7rem 0;
-}
-.sk-bar {
-  height: 0.85rem; border-radius: 5px;
-  background: linear-gradient(90deg, var(--rule) 0%, var(--code-bg) 50%, var(--rule) 100%);
-  background-size: 200% 100%;
-  animation: sk-shimmer 1.4s ease-in-out infinite;
-}
-.sk-bar.sk-date { width: 2.5rem; flex-shrink: 0; }
 @keyframes sk-shimmer {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .sk-bar { animation: none; background: var(--rule); }
-}
-.pager { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 1.25rem; }
-.pager button {
-  display: inline-flex; align-items: center; justify-content: center;
-  background: none; border: none; cursor: pointer; color: var(--muted); padding: 2px;
-}
-.pager button:hover:not(:disabled) { color: var(--ink); }
-.pager button:disabled { opacity: 0.3; cursor: default; }
-.pager-info { color: var(--muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
 
 /* Faint side rails for edit mode; the negative margin pushes them into the gutter
    so the text column doesn't shift when toggling edit. */
@@ -318,9 +188,7 @@ a:hover { text-decoration: none; }
 }
 .entry-title-input { border: none; outline: none; background: transparent; padding: 0; }
 
-/* Editor meta row: date + publish toggle stack in the right column, top-aligned so
-   the toggle stays under the date however tall the tag list grows. */
-.entry-tags-edit { align-self: start; }
+.entry-meta-block > .hashtags { align-self: start; min-width: 0; }
 .entry-meta-side {
   grid-column: 2;
   align-self: start;
@@ -358,82 +226,38 @@ a:hover { text-decoration: none; }
 .draft-toggle.is-published .draft-toggle-thumb { left: calc(100% - 18px); }
 .draft-toggle.is-draft .draft-toggle-thumb { left: 4px; }
 
-/* Every tag-row control shares this exact height so swapping the + button for the
-   input (or chips for none) never shifts the row; centering is by flex/height, not padding. */
-.tag, .tag-add, .tag-input { height: 1.7rem; }
-.tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25em;
-  max-width: 11rem;
-  padding: 0 0.6em;
-  border-radius: 999px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  text-decoration: none;
-  color: var(--muted);
-  background: color-mix(in srgb, var(--muted) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--muted) 22%, transparent);
-}
-/* Home-list tags are secondary chrome, so shrink the chips 20% off the base size. */
-.ml-tags .tag,
-.ml-more-pop .tag { font-size: 0.576rem; height: 1.36rem; }
-/* A clickable chip shows the pointer and warms toward ink on hover. */
-a.tag, .ml-tags .tag, .ml-more-pop .tag { cursor: pointer; }
-a.tag:hover, .ml-tags .tag:hover, .ml-more-pop .tag:hover { color: var(--ink); border-color: var(--muted); }
-.tag-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; color: inherit; text-decoration: none; }
-a.tag-label { cursor: pointer; }
-a.tag-label:hover { color: var(--ink); }
+/* ── Hashtag tags (# is display-only; frontmatter stays a plain string) ─ */
+.hashtags { display: flex; flex-wrap: wrap; align-items: center; gap: 0.55em; margin: 0; padding: 0; list-style: none; }
+.hashtag { font-size: 0.8rem; color: var(--muted); text-decoration: none; white-space: nowrap; }
+a.hashtag:hover { color: var(--accent); }
 
-/* Wraps freely so a long set doesn't crowd the dates; the meta row owns spacing. */
-.entry-tags {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-/* Flex (not block) so each li's height is exactly its 1.7rem control — a line box
-   would reserve differing baseline space and shift the row ~1px when toggling button/input. */
-.entry-tags > li { display: flex; align-items: center; }
-
-.entry-tags-edit { align-items: center; }
-.tag-x {
+.hashtags-edit { gap: 0.6em; }
+.hashtag-chip { display: inline-flex; align-items: center; gap: 0.15em; }
+.hashtag-x {
   display: inline-flex; align-items: center; justify-content: center;
-  border: none; background: none; padding: 0; margin-right: -0.15em;
-  color: inherit; opacity: 0.7; cursor: pointer; flex-shrink: 0;
+  border: none; background: none; padding: 0; color: var(--muted); opacity: 0.7; cursor: pointer;
 }
-.tag-x:hover { opacity: 1; }
-.tag-add {
+.hashtag-x:hover { opacity: 1; color: var(--ink); }
+.hashtag-add {
   display: inline-flex; align-items: center; gap: 0.2em;
-  padding: 0 0.6em;
-  border-radius: 999px;
-  border: 1px dashed var(--rule);
-  background: none; color: var(--muted); cursor: pointer;
-  font-size: 0.72rem; font-weight: 600;
+  border: none; background: none; padding: 0; cursor: pointer;
+  color: var(--muted); font: inherit; font-size: 0.8rem;
 }
-.tag-add:hover { color: var(--ink); border-color: var(--muted); }
-.tag-add-label { letter-spacing: 0.01em; }
-.tag-input {
-  width: 7rem; padding: 0 0.55em;
-  border-radius: 999px; border: 1px solid var(--accent);
-  background: transparent; color: var(--ink);
-  font-family: inherit; font-size: 0.72rem; font-weight: 600;
-  outline: none;
-  padding: 0.5rem 0.75rem;
+.hashtag-add:hover { color: var(--ink); }
+.hashtag-input {
+  width: 7rem; padding: 0.15rem 0.4rem;
+  border: none; border-bottom: 1px solid var(--accent); background: transparent;
+  color: var(--ink); font: inherit; font-size: 0.85rem; outline: none;
 }
-.tag-input::placeholder { color: var(--muted); font-weight: 500; }
+.hashtag-input::placeholder { color: var(--muted); }
 
-.tag-filter { display: flex; align-items: center; gap: 0.5rem; margin: 1.5rem 0 -1rem; font-size: 0.8rem; }
-.tag-filter-label { color: var(--muted); }
-.tag-filter-clear {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 1.4rem; height: 1.4rem; padding: 0;
-  border: none; border-radius: 999px; background: none; color: var(--muted); cursor: pointer;
-}
-.tag-filter-clear:hover { color: var(--ink); background: var(--hover-bg); }
+.jr-spot-tags { margin-top: 1rem; }
+.jr-card-tags { gap: 0.5em; }
+.ar-row-main { display: flex; align-items: baseline; gap: 0.75rem; min-width: 0; }
+.ar-row-main .ar-row-title { flex: 0 1 auto; }
+.ar-row-tags { flex-shrink: 0; }
+@media (max-width: 34rem) { .ar-row-tags { display: none; } }
+
 /* A button styled as an inline text link. */
 .link-btn {
   border: none; background: none; padding: 0; cursor: pointer;
@@ -760,3 +584,165 @@ a.tag-label:hover { color: var(--ink); }
   :root:not([data-theme='light']) .theme-toggle .icon-sun { display: inline; }
   :root:not([data-theme='light']) .theme-toggle .icon-moon { display: none; }
 }
+
+/* ── Header view switcher (JournalNav): "Journal / Latest ▾" ──────────── */
+.jn { display: flex; align-items: center; gap: 0.6rem; }
+.jn-brand { font-size: 1.25rem; font-weight: 600; letter-spacing: -0.01em; color: var(--ink); text-decoration: none; }
+.jn-sep { color: var(--muted); opacity: 0.55; font-weight: 300; }
+.jn-dd { position: relative; }
+.jn-dd-trigger {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  background: none; border: none; cursor: pointer; padding: 0;
+  font: inherit; font-size: 1.05rem; color: var(--ink);
+}
+.jn-caret {
+  width: 0; height: 0;
+  border-left: 4px solid transparent; border-right: 4px solid transparent;
+  border-top: 5px solid var(--muted);
+}
+.jn-dd-menu {
+  position: absolute; top: calc(100% + 8px); left: -0.5rem; z-index: 30;
+  margin: 0; padding: 0.3rem; list-style: none; min-width: 8rem;
+  background: var(--bg); border: 1px solid var(--rule); border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+}
+.jn-dd-menu li { margin: 0; }
+.jn-dd-menu a { display: block; padding: 0.4rem 0.7rem; border-radius: 6px; color: var(--ink); font-size: 0.95rem; text-decoration: none; }
+.jn-dd-menu a:hover { background: var(--hover-bg); }
+.jn-dd-menu a.active { color: var(--accent); }
+
+/* ── Journal home: spotlight + recent grid ───────────────────────────── */
+.jr-loading { min-height: 60vh; }
+.jr-empty { color: var(--muted); margin-top: 3rem; }
+
+.jr-spotlight { margin: 0.5rem 0 1.5rem; }
+.jr-spot-card { display: block; text-decoration: none; }
+.jr-cover {
+  position: relative; overflow: hidden;
+  background: var(--code-bg); border: 1px solid var(--rule); border-radius: 14px;
+}
+.jr-spot-cover { aspect-ratio: 16 / 9; }
+.jr-cover-media { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border: 0; display: block; }
+iframe.jr-cover-media { pointer-events: none; background: var(--bg); }
+/* Fill the frame's width, take height from the figure's ratio, and vertically centre. */
+.jr-cover-frame {
+  inset: auto; top: 50%; left: 0; right: 0;
+  width: 100%; height: auto;
+  aspect-ratio: var(--fig-ar, 16 / 9);
+  transform: translateY(-50%);
+}
+.jr-cover-shade {
+  position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.82) 0%, rgba(0, 0, 0, 0.35) 38%, rgba(0, 0, 0, 0) 66%);
+}
+.jr-spot-meta { position: absolute; left: 0; right: 0; bottom: 0; padding: 1.5rem 1.75rem; }
+.jr-eyebrow { font-size: 0.72rem; letter-spacing: 0.09em; text-transform: uppercase; color: rgba(255, 255, 255, 0.82); margin-bottom: 0.6rem; }
+.jr-spot-title {
+  font-size: 1.85rem; line-height: 1.15; font-weight: 600; letter-spacing: -0.015em;
+  margin: 0; color: #fff; text-shadow: 0 1px 12px rgba(0, 0, 0, 0.35);
+}
+.jr-spot-excerpt { font-size: 1rem; line-height: 1.72; color: var(--muted); margin: 1.35rem 0 0; max-width: 60ch; }
+.jr-spot-more { font-size: 0.78rem; color: var(--accent); white-space: nowrap; text-decoration: none; }
+.jr-spot-more:hover { text-decoration: underline; }
+.jr-more { color: var(--accent); white-space: nowrap; text-decoration: none; }
+.jr-more:hover { text-decoration: underline; }
+
+.jr-rule { height: 1px; background: var(--rule); margin: 0 0 1.5rem; }
+.jr-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.4rem; align-items: start; }
+.jr-card { display: flex; flex-direction: column; gap: 0.6rem; text-decoration: none; }
+.jr-card-cover { aspect-ratio: 4 / 3; border-radius: 9px; }
+.jr-card-excerpt { aspect-ratio: 4 / 3; overflow: hidden; margin: 0; font-size: 0.82rem; line-height: 1.62; color: var(--muted); }
+.jr-card-title { font-size: 0.92rem; line-height: 1.35; color: var(--ink); }
+.jr-card:hover .jr-card-title { color: var(--accent); }
+.jr-card-date { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+
+.jr-foot { display: flex; justify-content: flex-end; margin-top: 1.6rem; }
+.jr-archive { font-size: 0.82rem; color: var(--muted); }
+.jr-archive:hover { color: var(--accent); text-decoration: none; }
+
+@media (max-width: 34rem) {
+  .jr-grid { grid-template-columns: 1fr; gap: 1.6rem; }
+  .jr-card-excerpt { aspect-ratio: auto; }
+  .jr-spot-title { font-size: 1.5rem; }
+}
+
+/* ── Archive: month selector + paginated list ────────────────────────── */
+.ar-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 1.6rem 0 1.75rem; }
+.ar-period { position: relative; }
+.ar-period-trigger {
+  display: inline-flex; align-items: center; gap: 0.55rem;
+  background: none; border: none; padding: 0; cursor: pointer;
+  font: inherit; font-size: 1.3rem; font-weight: 600; letter-spacing: -0.015em; color: var(--ink);
+}
+.ar-period-trigger:disabled { cursor: default; }
+.ar-caret {
+  width: 0; height: 0; margin-top: 3px;
+  border-left: 5px solid transparent; border-right: 5px solid transparent;
+  border-top: 6px solid var(--accent);
+}
+.ar-monthpicker {
+  position: absolute; top: calc(100% + 10px); left: -0.75rem; z-index: 30;
+  width: 17rem; padding: 0.85rem;
+  background: var(--bg); border: 1px solid var(--rule); border-radius: 14px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+}
+.ar-mp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.7rem; padding: 0 0.35rem; }
+.ar-mp-year { font-size: 0.9rem; font-weight: 600; color: var(--ink); }
+.ar-mp-nav {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.6rem; height: 1.6rem; padding: 0;
+  background: none; border: none; border-radius: 6px; cursor: pointer; color: var(--muted);
+}
+.ar-mp-nav:hover:not(:disabled) { color: var(--ink); background: var(--hover-bg); }
+.ar-mp-nav:disabled { opacity: 0.3; cursor: default; }
+.ar-mp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4rem; }
+.ar-mp-month {
+  padding: 0.55rem 0; border: none; border-radius: 8px; cursor: pointer;
+  background: none; color: var(--ink); font: inherit; font-size: 0.85rem;
+}
+.ar-mp-month:hover:not(:disabled):not(.selected) { background: var(--hover-bg); }
+.ar-mp-month.selected { background: var(--accent); color: #fff; }
+.ar-mp-month:disabled { color: var(--muted); opacity: 0.35; cursor: default; }
+
+.ar-admin { color: var(--muted); font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.4rem; }
+
+.ar-tagfilter { display: flex; align-items: center; gap: 0.5rem; margin: -0.75rem 0 1.25rem; font-size: 0.82rem; }
+.ar-tagfilter-label { color: var(--muted); }
+.ar-tagfilter-clear {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.4rem; height: 1.4rem; padding: 0; font-size: 0.8rem;
+  border: none; border-radius: 999px; background: none; color: var(--muted); cursor: pointer;
+}
+.ar-tagfilter-clear:hover { color: var(--ink); background: var(--hover-bg); }
+
+.ar-list { margin: 0; }
+.ar-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  padding: 1rem 0.75rem; margin: 0 -0.75rem;
+  border-bottom: 1px solid var(--rule); border-radius: 6px;
+  text-decoration: none; cursor: pointer; transition: background 0.12s;
+}
+.ar-row:hover { background: var(--hover-bg); }
+.ar-row-title { font-size: 0.95rem; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-row-date { font-size: 0.82rem; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.ar-empty { color: var(--muted); margin-top: 1rem; }
+
+/* Loading skeleton reuses the row rhythm so the list doesn't shift when data lands. */
+.ar-row-skeleton { cursor: default; }
+.ar-sk {
+  height: 0.85rem; border-radius: 5px;
+  background: linear-gradient(90deg, var(--rule) 0%, var(--code-bg) 50%, var(--rule) 100%);
+  background-size: 200% 100%; animation: sk-shimmer 1.4s ease-in-out infinite;
+}
+.ar-sk-date { width: 2.5rem; }
+@media (prefers-reduced-motion: reduce) { .ar-sk { animation: none; background: var(--rule); } }
+
+.ar-pager { display: flex; align-items: center; justify-content: center; gap: 1.25rem; margin-top: 2.4rem; color: var(--muted); font-size: 0.82rem; }
+.ar-pager-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: none; padding: 4px; cursor: pointer; color: var(--muted);
+}
+.ar-pager-btn:hover:not(:disabled) { color: var(--ink); }
+.ar-pager-btn:disabled { opacity: 0.3; cursor: default; }
+.ar-pager-info { min-width: 3.25rem; text-align: center; font-variant-numeric: tabular-nums; }

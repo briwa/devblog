@@ -22,6 +22,7 @@ import {
 } from './src/lib/publish.js';
 // Shared with the real /data endpoints; kept astro:content-free so this Vite config can import it.
 import { entrySummary, published, yearsOf } from './src/lib/entryData.js';
+import { entryPreview, HOME_RECENT } from './src/lib/entryPreview.js';
 
 // Dev-only: emulate the editor's /admin/api/* write routes against local disk (no server in prod).
 function devPublish() {
@@ -64,26 +65,39 @@ function devPublish() {
         if (req.method !== 'GET') return next();
         const path = (req.url || '').split('?')[0];
         const wantsYears = path === '/years.json';
+        const wantsHome = path === '/home.json';
         const yearMatch = /^\/(\d{4})\.json$/.exec(path);
-        if (!wantsYears && !yearMatch) return next(); // not a data route we mirror
+        if (!wantsYears && !wantsHome && !yearMatch) return next(); // not a data route we mirror
 
         const dir = join(root(), 'src', 'content', 'posts');
         // Missing dir / empty repo → empty result, not an error.
         const files = (await readdir(dir).catch(() => []))
           .filter((f) => f.endsWith('.md'))
           .sort();
-        // The minimal post-like shape entrySummary/yearsOf expect (no astro:content here).
+        // The minimal post-like shape entrySummary/yearsOf expect (no astro:content here);
+        // `body` mirrors Astro's collection entry so entryPreview derives the same cover/excerpt.
         const posts = await Promise.all(
           files.map(async (f) => {
             const id = f.slice(0, -3); // strip .md → the same id Astro's glob uses
             const text = await readFile(join(dir, f), 'utf8').catch(() => '');
-            return { id, data: { title: frontmatterTitle(text) || id, tags: frontmatterTags(text), draft: frontmatterDraft(text) } };
+            return { id, body: entryBody(text), data: { title: frontmatterTitle(text) || id, tags: frontmatterTags(text), draft: frontmatterDraft(text) } };
           }),
         );
 
         // Drafts are unlisted — drop them, as the prerendered /data endpoints do.
         const live = published(posts);
         if (wantsYears) return sendJson(res, 200, yearsOf(live));
+        if (wantsHome) {
+          const recent = [...live].sort((a, b) => b.id.localeCompare(a.id));
+          const cards = recent.slice(0, HOME_RECENT + 1).map((p) => ({
+            id: p.id,
+            title: p.data.title,
+            iso: `${p.id.slice(0, 10)}T00:00:00.000Z`,
+            tags: parseTags(p.data.tags),
+            ...entryPreview(p.body || ''),
+          }));
+          return sendJson(res, 200, { spotlight: cards[0] || null, recent: cards.slice(1) });
+        }
         const year = yearMatch[1];
         return sendJson(res, 200, live.filter((p) => p.id.slice(0, 4) === year).map(entrySummary));
       });

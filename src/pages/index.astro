@@ -1,10 +1,12 @@
 ---
 import Base from '../layouts/Base.astro';
 import Home from '../components/Home.jsx';
+import JournalNav from '../components/JournalNav.jsx';
 
-// Home fetches years and per-year entries at runtime so the static HTML doesn't grow with the archive.
+// Home fetches the spotlight + recent grid at runtime so the static HTML doesn't grow with the archive.
 ---
 
 <Base>
+  <JournalNav slot="brand" current="latest" client:only="react" />
   <Home client:only="react" />
 </Base>
