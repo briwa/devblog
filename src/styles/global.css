@@ -73,7 +73,8 @@ a:hover { text-decoration: none; }
 .site-head h1 {
   font-size: 1.25rem;
   margin: 0;
-  letter-spacing: 0.01em;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 .site-head a { color: var(--ink); text-decoration: none; }
 .site-head nav a {
