@@ -71,20 +71,22 @@ export default function Home() {
           <div className="jr-rule" />
           <div className="jr-grid">
             {recent.map((e) => (
-              <a className="jr-card" key={e.id} href={`/posts/${e.id}/`}>
+              <div
+                className="jr-card"
+                key={e.id}
+                onMouseEnter={(ev) => play(ev.currentTarget, true)}
+                onMouseLeave={(ev) => play(ev.currentTarget, false)}
+              >
+                <a className="jr-card-link" href={`/posts/${e.id}/`} aria-label={e.title} />
                 {e.cover ? (
-                  <div
-                    className="jr-cover jr-card-cover"
-                    onMouseEnter={(ev) => play(ev.currentTarget, true)}
-                    onMouseLeave={(ev) => play(ev.currentTarget, false)}
-                  ><Cover cover={e.cover} /></div>
+                  <div className="jr-cover jr-card-cover"><Cover cover={e.cover} /></div>
                 ) : (
                   <p className="jr-card-excerpt">{e.excerpt}</p>
                 )}
                 <span className="jr-card-title">{e.title}</span>
-                <Hashtags tags={e.tags} max={3} className="jr-card-tags" />
+                <Hashtags tags={e.tags} max={3} link className="jr-card-tags" />
                 <span className="jr-card-date">{fmtDay(e.iso)}</span>
-              </a>
+              </div>
             ))}
           </div>
           <div className="jr-foot">
