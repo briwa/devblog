@@ -1,0 +1,13 @@
+---
+import Base from '../layouts/Base.astro';
+import JournalNav from '../components/JournalNav.jsx';
+import { SITE_NAME } from '../config.js';
+---
+
+<Base title={`About — ${SITE_NAME}`}>
+  <JournalNav slot="brand" current="about" client:only="react" />
+  <article class="about">
+    <h1>About</h1>
+    <p>Intentionally blank.</p>
+  </article>
+</Base>

@@ -586,7 +586,7 @@ a.hashtag:hover { color: var(--accent); }
   :root:not([data-theme='light']) .theme-toggle .icon-moon { display: none; }
 }
 
-/* ── Header view switcher (JournalNav): "Journal / Latest ▾" ──────────── */
+/* ── Header view switcher (JournalNav): "Journal / dropdown ▾" ──────────── */
 .jn { display: flex; align-items: center; gap: 0.6rem; }
 .jn-brand { font-size: 1.25rem; font-weight: 600; letter-spacing: -0.01em; color: var(--ink); text-decoration: none; }
 .jn-sep { color: var(--muted); opacity: 0.55; font-weight: 300; }
@@ -608,6 +608,7 @@ a.hashtag:hover { color: var(--accent); }
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
 }
 .jn-dd-menu li { margin: 0; }
+.jn-dd-menu li.jn-dd-divider { margin-top: 0.3rem; padding-top: 0.3rem; border-top: 1px solid var(--rule); }
 .jn-dd-menu a { display: block; padding: 0.4rem 0.7rem; border-radius: 6px; color: var(--ink); font-size: 0.95rem; text-decoration: none; }
 .jn-dd-menu a:hover { background: var(--hover-bg); }
 .jn-dd-menu a.active { color: var(--accent); }

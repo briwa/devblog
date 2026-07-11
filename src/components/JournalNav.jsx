@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { SITE_NAME } from "../config.js";
 
 const VIEWS = [
-  { key: "latest", label: "Latest", href: "/" },
-  { key: "archive", label: "Archive", href: "/archive" },
+  { key: "home", label: "Home", href: "/" },
+  { key: "about", label: "About", href: "/about" },
+  { key: "archive", label: "Archive", href: "/archive", divider: true },
 ];
 
-export default function JournalNav({ current = "latest" }) {
+export default function JournalNav({ current = "home" }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -22,7 +23,7 @@ export default function JournalNav({ current = "latest" }) {
     };
   }, [open]);
 
-  const label = VIEWS.find((v) => v.key === current)?.label || "Latest";
+  const label = (VIEWS.find((v) => v.key === current) ?? VIEWS[0]).label;
 
   return (
     <div className="jn">
@@ -42,7 +43,7 @@ export default function JournalNav({ current = "latest" }) {
         {open && (
           <ul className="jn-dd-menu" role="listbox" aria-label="View">
             {VIEWS.map((v) => (
-              <li key={v.key} role="option" aria-selected={v.key === current}>
+              <li key={v.key} role="option" aria-selected={v.key === current} className={v.divider ? "jn-dd-divider" : ""}>
                 <a className={v.key === current ? "active" : ""} href={v.href}>{v.label}</a>
               </li>
             ))}
