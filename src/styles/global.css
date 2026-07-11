@@ -658,7 +658,8 @@ iframe.jr-cover-media { pointer-events: none; background: var(--bg); }
 .jr-card { position: relative; display: flex; flex-direction: column; gap: 0.6rem; text-decoration: none; }
 .jr-card-link { position: absolute; inset: 0; z-index: 1; border-radius: 9px; }
 .jr-card a.hashtag { position: relative; z-index: 2; }
-.jr-card-cover { aspect-ratio: 4 / 3; border-radius: 9px; }
+/* Above the click overlay so the play-on-hover fires only over the cover, not the whole tile. */
+.jr-card-cover { display: block; aspect-ratio: 4 / 3; border-radius: 9px; z-index: 2; }
 .jr-card-excerpt { aspect-ratio: 4 / 3; margin: 0; font-size: 0.82rem; line-height: 1.62; color: var(--muted); }
 .jr-card-title { font-size: 0.92rem; line-height: 1.35; color: var(--ink); }
 .jr-card-link:hover ~ .jr-card-title { color: var(--accent); }
@@ -670,10 +671,22 @@ iframe.jr-cover-media { pointer-events: none; background: var(--bg); }
 
 @media (max-width: 34rem) {
   .jr-spot-title { font-size: 1.5rem; }
-  /* Recent posts collapse to title + hashtags + date — no cover or excerpt. */
-  .jr-grid { grid-template-columns: 1fr; gap: 1.1rem; }
-  .jr-card { gap: 0.3rem; }
-  .jr-card-cover, .jr-card-excerpt { display: none; }
+  /* Recent posts collapse to archive-style title/date rows — no cover, excerpt, or tags. */
+  .jr-grid { display: block; }
+  .jr-card {
+    flex-direction: row; align-items: center; justify-content: space-between; gap: 1rem;
+    padding: 1rem 0.75rem; margin: 0 -0.75rem;
+    border-bottom: 1px solid var(--rule);
+    transition: background 0.12s;
+  }
+  .jr-card:hover { background: var(--hover-bg); }
+  .jr-card-cover, .jr-card-excerpt, .jr-card-tags { display: none; }
+  .jr-card-title {
+    flex: 0 1 auto; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-size: 0.95rem;
+  }
+  .jr-card-date { flex-shrink: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
 }
 
 /* ── Archive: month selector + paginated list ────────────────────────── */

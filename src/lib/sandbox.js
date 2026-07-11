@@ -46,7 +46,7 @@ export function parseMeta(lang, meta) {
     const vbgMatch = /(?:^|\s)bg="([^"]*)"/.exec(raw);
     let vbg = vbgMatch ? vbgMatch[1] : '';
     if (vbg && !/^[#\w(),.%\s-]+$/.test(vbg)) vbg = '';
-    return { vue: true, preset: 'root', w: vw, h: vh, showCode: tokens.includes('code'), bg: vbg, id };
+    return { vue: true, preset: 'root', w: vw, h: vh, showCode: tokens.includes('code'), bg: vbg, id, preview: tokens.includes('preview') };
   }
   // `external-lib` (shared URLs, not a figure); checked before `lib` so its token isn't read as a bare `lib`.
   if (!preset && tokens.some((t) => t === 'external-lib' || t.startsWith('external-lib='))) {
@@ -69,7 +69,8 @@ export function parseMeta(lang, meta) {
   const bgMatch = /(?:^|\s)bg="([^"]*)"/.exec(raw);
   let bg = bgMatch ? bgMatch[1] : '';
   if (bg && !/^[#\w(),.%\s-]+$/.test(bg)) bg = '';
-  return { preset, w, h, showCode, bg, auto, id };
+  // Opt-in `preview` token: nominate this figure as the entry's home-page cover.
+  return { preset, w, h, showCode, bg, auto, id, preview: tokens.includes('preview') };
 }
 
 // Concatenate a group's `lib` blocks into a shared prelude — iframes can't share globals, so sharing is source-level.
