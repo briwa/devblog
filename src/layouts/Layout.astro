@@ -10,7 +10,7 @@ const { title, noIndex } = Astro.props;
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{title ? `${title} — ${SITE_NAME}` : SITE_NAME}</title>
+    <title>{title || SITE_NAME}</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>📓</text></svg>" />
     <script is:inline>
       // Apply the saved theme before paint; no saved value = follow the device.

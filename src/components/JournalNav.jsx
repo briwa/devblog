@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { SITE_NAME } from "../config.js";
 
 const VIEWS = [
   { key: "home", label: "Home", href: "/" },
@@ -26,6 +27,8 @@ export default function JournalNav({ current = "home" }) {
 
   return (
     <div className="jn">
+      <a className="jn-brand" href="/">{SITE_NAME}</a>
+      <span className="jn-sep" aria-hidden="true">/</span>
       <div className="jn-dd" ref={ref}>
         <button
           type="button"

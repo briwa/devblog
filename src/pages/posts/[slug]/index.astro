@@ -3,6 +3,7 @@ import { getCollection, render } from 'astro:content';
 import Base from '../../../layouts/Base.astro';
 import EntryActions from '../../../components/EntryActions.jsx';
 import EntryNav from '../../../components/EntryNav.jsx';
+import { SITE_NAME } from '../../../config.js';
 import { createdOf } from '../../../lib/created.js';
 import { parseTags, tagHref } from '../../../lib/tags.js';
 import { published } from '../../../lib/entryData.js';
@@ -27,6 +28,7 @@ const tags = parseTags(post.data.tags);
 ---
 
 <Base title={post.data.title}>
+  <h1 slot="brand"><a href="/">{ SITE_NAME }</a></h1>
   {/* `data-pagefind-body` scopes the search index to entry pages only. */}
   <div id="entry-view" data-pagefind-body>
     <div class="entry-bar">
@@ -53,7 +55,7 @@ const tags = parseTags(post.data.tags);
   {/* Prev/next resolved on the client so the neighbour list isn't baked into the HTML. */}
   <EntryNav id={post.id} client:only="react" />
 
-  <a class="back" href="/">← Home</a>
+  <a class="back" href="/">← { SITE_NAME }</a>
 
   {/* Full-screen image viewer: clicking any prose image opens it here. Hidden until opened. */}
   <div id="lightbox" class="lightbox" aria-hidden="true">
