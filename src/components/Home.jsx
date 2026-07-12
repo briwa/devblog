@@ -261,7 +261,6 @@ export default function Home() {
           </>
         ) : (
           <>
-            <h2 className="jr-monthhead">{monthLabel(activeMonth)}</h2>
             <div className="jr-grid">
               {gridItems.map((e) => (
                 <PostCard key={e.id} entry={e} />
