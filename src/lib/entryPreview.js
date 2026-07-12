@@ -1,5 +1,5 @@
 // Pure (no astro:content) so the build endpoint and dev mirror share it.
-import { firstParagraph } from './publish.js';
+import { leadProse } from './publish.js';
 import {
   findSandboxBlocks,
   buildSrcdoc,
@@ -68,7 +68,7 @@ function pickCover(body) {
 }
 
 export function entryPreview(body = '') {
-  let excerpt = toText(firstParagraph(body || ''));
+  let excerpt = toText(leadProse(body || ''));
   if (excerpt.length > 220) excerpt = excerpt.slice(0, 220).replace(/\s+\S*$/, '') + '…';
 
   return { excerpt, cover: pickCover(body || '') };

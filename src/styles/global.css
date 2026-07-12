@@ -615,9 +615,12 @@ a.hashtag:hover { color: var(--accent); }
 .home { position: relative; }
 .tl {
   position: fixed; z-index: 20;
-  top: 9rem; width: 8rem;
+  top: 9rem; width: 8.5rem;
   /* Right edge tucked just left of the column so the labels sit next to the body. */
   right: calc(50% + var(--max) / 2 + 1rem);
+  /* Divider between the picker and the content column. */
+  border-right: 1px solid var(--rule);
+  padding-right: 0.9rem;
 }
 .tl-list {
   list-style: none; margin: 0; padding: 0;
@@ -646,7 +649,7 @@ a.hashtag:hover { color: var(--accent); }
 
 /* No room for labels in the gutter → a segmented vertical bar at the edge; long-press floats the labels. */
 @media (max-width: 62rem) {
-  .tl { top: 8rem; right: auto; left: 0.1rem; width: 1.5rem; }
+  .tl { top: 8rem; right: auto; left: 0.1rem; width: 1.5rem; border-right: none; padding-right: 0; }
   .tl-item { justify-content: center; gap: 0; padding: 0.13rem 0; }
   .tl-label { display: none; }
   /* One short vertical line per month, tiny gaps between them from the item padding. */

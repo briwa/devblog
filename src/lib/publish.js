@@ -132,14 +132,34 @@ export function entryBody(text) {
 }
 
 // --- Blank-title heuristic --------------------------------------------------
+// Non-prose blocks the lead skips over (headings, images, quotes) or stops at (code fences).
+const NON_PROSE = /^(#{1,6}\s|!\[|>|`{3,}|~{3,})/;
+
 // The first prose paragraph — skips blank lines, headings, images and quotes.
 export function firstParagraph(md) {
   for (const block of md.split(/\n\s*\n/)) {
     const text = block.trim();
-    if (!text || /^(#{1,6}\s|!\[|>)/.test(text)) continue;
+    if (!text || NON_PROSE.test(text)) continue;
     return text.replace(/\s+/g, ' ').slice(0, 1500);
   }
   return md.trim().replace(/\s+/g, ' ').slice(0, 1500);
+}
+
+// The opening run of prose paragraphs, merged across blank lines — for previews
+// that want more than one sentence. Stops at the first heading/image/quote/code.
+export function leadProse(md) {
+  const out = [];
+  for (const block of md.split(/\n\s*\n/)) {
+    const text = block.trim();
+    if (!text) continue;
+    if (NON_PROSE.test(text)) {
+      if (out.length) break;
+      continue;
+    }
+    out.push(text);
+  }
+  const joined = out.join(' ').replace(/\s+/g, ' ');
+  return (joined || md.trim().replace(/\s+/g, ' ')).slice(0, 1500);
 }
 
 // Cheap fallback title from the opening words, Title Cased. Unicode-aware so
