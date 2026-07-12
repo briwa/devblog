@@ -66,8 +66,7 @@ a:hover { text-decoration: none; }
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding-bottom: 1.25rem;
-  border-bottom: 1px solid var(--rule);
+  padding-bottom: 1rem;
   margin-bottom: 2.5rem;
 }
 .site-head h1 {
@@ -618,8 +617,6 @@ a.hashtag:hover { color: var(--accent); }
   top: 9rem; width: 8.5rem;
   /* Right edge tucked just left of the column so the labels sit next to the body. */
   right: calc(50% + var(--max) / 2 + 1rem);
-  /* Divider between the picker and the content column. */
-  border-right: 1px solid var(--rule);
   padding-right: 0.9rem;
 }
 .tl-list {
@@ -642,35 +639,22 @@ a.hashtag:hover { color: var(--accent); }
 .tl-node { display: none; flex: none; box-sizing: border-box; }
 .tl-label { flex: 1; text-align: right; overflow: hidden; text-overflow: ellipsis; }
 
-/* No room for labels in the gutter → a segmented vertical bar at the edge; long-press floats the labels. */
+/* Below the content-plus-gutter width the timeline has nowhere to live → hide it and step through
+   months with the stepper under the pager instead. */
+.jr-monthnav { display: none; }
 @media (max-width: 62rem) {
-  .tl { top: 8rem; right: auto; left: 0.1rem; width: 1.5rem; border-right: none; padding-right: 0; }
-  .tl-item { justify-content: center; gap: 0; padding: 0.13rem 0; }
-  .tl-label { display: none; }
-  /* One short vertical line per month, tiny gaps between them from the item padding. */
-  .tl-node {
-    display: block; width: 2px; height: 1.15rem; border: none; border-radius: 1px;
-    background: var(--rule);
+  .tl { display: none; }
+  .jr-monthnav {
+    display: flex; align-items: center; justify-content: center; gap: 0.6rem;
+    margin-top: 1.5rem; color: var(--muted); font-size: 0.82rem;
   }
-  .tl-item:hover .tl-node { background: var(--muted); }
-  .tl-item.is-active .tl-node { width: 3px; background: var(--accent); }
-
-  .tl[data-expanded="true"] .tl-list {
-    position: absolute; left: 0; top: 0; z-index: 40;
-    min-width: 9rem; max-height: 70vh; padding: 0.5rem 0.85rem;
-    background: var(--bg); border: 1px solid var(--rule); border-radius: 12px;
-    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
-    background-image: none;
-    -webkit-mask-image: none; mask-image: none;
+  .jr-monthnav-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: none; border: none; padding: 4px; cursor: pointer; color: var(--muted);
   }
-  .tl[data-expanded="true"] .tl-item { justify-content: flex-start; gap: 0.65rem; padding: 0.42rem 0; text-align: left; }
-  .tl[data-expanded="true"] .tl-label { display: block; flex: none; text-align: left; }
-  /* Back to labelled dots inside the expanded popup. */
-  .tl[data-expanded="true"] .tl-node {
-    display: inline-block; width: 7px; height: 7px; border-radius: 50%;
-    border: 1.5px solid var(--rule); background: var(--bg);
-  }
-  .tl[data-expanded="true"] .tl-item.is-active .tl-node { width: 7px; border-color: var(--accent); background: var(--accent); }
+  .jr-monthnav-btn:hover:not(:disabled) { color: var(--ink); }
+  .jr-monthnav-btn:disabled { opacity: 0.3; cursor: default; }
+  .jr-monthnav-label { font-weight: 600; color: var(--ink); }
 }
 
 .jr-spotlight { margin: 0.5rem 0 1.5rem; }
@@ -785,11 +769,11 @@ iframe.jr-cover-media { pointer-events: none; background: var(--bg); }
 
 .ar-empty { color: var(--muted); margin-top: 1rem; }
 
-.ar-pager { display: flex; align-items: center; justify-content: center; gap: 1.25rem; margin-top: 2.4rem; color: var(--muted); font-size: 0.82rem; }
+.ar-pager { display: flex; align-items: center; justify-content: center; gap: 0.6rem; margin-top: 2.4rem; color: var(--muted); font-size: 0.82rem; }
 .ar-pager-btn {
   display: inline-flex; align-items: center; justify-content: center;
   background: none; border: none; padding: 4px; cursor: pointer; color: var(--muted);
 }
 .ar-pager-btn:hover:not(:disabled) { color: var(--ink); }
 .ar-pager-btn:disabled { opacity: 0.3; cursor: default; }
-.ar-pager-info { min-width: 3.25rem; text-align: center; font-variant-numeric: tabular-nums; }
+.ar-pager-info { text-align: center; font-variant-numeric: tabular-nums; }

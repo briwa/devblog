@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { fmtFull, fmtMonthYear } from "../lib/dates.js";
 import Hashtags from "./Hashtags.jsx";
 import PostCard, { Cover, play } from "./PostCard.jsx";
@@ -6,7 +6,6 @@ import PostCard, { Cover, play } from "./PostCard.jsx";
 const RECENT = 3; // cards beside the spotlight on the "Today" page
 const PER_PAGE = 9; // 3×3 grid on every other page
 const LEAD = 1 + RECENT; // entries the spotlight + recent grid consume on the Today page
-const LONG_PRESS_MS = 450;
 
 const ChevronL = () => (
   <svg width="7" height="12" viewBox="0 0 7 12" fill="none" aria-hidden="true">
@@ -64,13 +63,9 @@ export default function Home() {
   const [error, setError] = useState(false);
   const [page, setPage] = useState(0);
   const [selectedMonth, setSelectedMonth] = useState(null); // "YYYY-MM"; null → Today
-  const [expanded, setExpanded] = useState(false); // mobile: timeline labels revealed
   const [activeTag, setActiveTag] = useState(
     () => new URLSearchParams(window.location.search).get("tag")?.trim() || null,
   );
-  const tlRef = useRef(null);
-  const pressTimer = useRef(null);
-  const longPressed = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -90,21 +85,6 @@ export default function Home() {
     return () => { cancelled = true; };
   }, []);
 
-  // Dismiss the expanded mobile timeline on outside tap / Escape.
-  useEffect(() => {
-    if (!expanded) return;
-    const onDown = (e) => { if (!tlRef.current?.contains(e.target)) setExpanded(false); };
-    const onKey = (e) => { if (e.key === "Escape") setExpanded(false); };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("touchstart", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("touchstart", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [expanded]);
-
   const filtered = useMemo(() => {
     const all = entries || [];
     if (!activeTag) return all;
@@ -117,6 +97,7 @@ export default function Home() {
 
   // The month in view: the reader's pick when it still has entries, otherwise the newest ("Today").
   const activeMonth = (selectedMonth && monthSet.has(selectedMonth) ? selectedMonth : monthsDesc[0]) || null;
+  const monthIdx = monthsDesc.indexOf(activeMonth);
   const isToday = activeMonth === monthsDesc[0];
   const monthItems = useMemo(
     () => filtered.filter((e) => e.iso.slice(0, 7) === activeMonth),
@@ -142,19 +123,6 @@ export default function Home() {
   function selectMonth(key) {
     setSelectedMonth(key);
     setPage(0);
-    setExpanded(false);
-  }
-
-  const startPress = () => {
-    longPressed.current = false;
-    pressTimer.current = setTimeout(() => { longPressed.current = true; setExpanded(true); }, LONG_PRESS_MS);
-  };
-  const cancelPress = () => { clearTimeout(pressTimer.current); };
-
-  // A long-press that opened the panel must not also select the pressed month.
-  function onItemClick(key) {
-    if (longPressed.current) { longPressed.current = false; return; }
-    selectMonth(key);
   }
 
   if (error) return <p className="jr-empty">Couldn’t load entries.</p>;
@@ -179,15 +147,7 @@ export default function Home() {
 
   return (
     <div className="home">
-      <aside
-        className="tl"
-        ref={tlRef}
-        data-expanded={expanded ? "true" : undefined}
-        onTouchStart={startPress}
-        onTouchEnd={cancelPress}
-        onTouchMove={cancelPress}
-        onTouchCancel={cancelPress}
-      >
+      <aside className="tl">
         <ol className="tl-list" aria-label="Timeline">
           {monthsDesc.map((m, i) => (
             <li key={m}>
@@ -195,7 +155,7 @@ export default function Home() {
                 type="button"
                 className={`tl-item${m === activeMonth ? " is-active" : ""}`}
                 aria-current={m === activeMonth ? "true" : undefined}
-                onClick={() => onItemClick(m)}
+                onClick={() => selectMonth(m)}
                 title={monthLabel(m)}
               >
                 <span className="tl-node" aria-hidden="true" />
@@ -285,6 +245,28 @@ export default function Home() {
               onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
               disabled={safePage >= pageCount - 1}
               aria-label="Older entries"
+            >
+              <ChevronR />
+            </button>
+          </div>
+        )}
+
+        {monthsDesc.length > 1 && (
+          <div className="jr-monthnav" role="group" aria-label="Month">
+            <button
+              className="jr-monthnav-btn"
+              onClick={() => selectMonth(monthsDesc[monthIdx - 1])}
+              disabled={monthIdx <= 0}
+              aria-label="Newer month"
+            >
+              <ChevronL />
+            </button>
+            <span className="jr-monthnav-label">{isToday ? "Today" : monthLabel(activeMonth)}</span>
+            <button
+              className="jr-monthnav-btn"
+              onClick={() => selectMonth(monthsDesc[monthIdx + 1])}
+              disabled={monthIdx >= monthsDesc.length - 1}
+              aria-label="Older month"
             >
               <ChevronR />
             </button>
