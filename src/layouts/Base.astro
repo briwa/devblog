@@ -2,17 +2,14 @@
 import Layout from './Layout.astro';
 import Icon from '../components/Icon.astro';
 import Search from '../components/Search.astro';
-import { SITE_NAME } from '../config.js';
 
-const { title } = Astro.props;
+const { title, noIndex } = Astro.props;
 ---
 
-<Layout title={title}>
+<Layout title={title} noIndex={noIndex}>
   <div class="wrap">
     <header class="site-head">
-      <slot name="brand">
-        <h1><a href="/">{SITE_NAME}</a></h1>
-      </slot>
+      <slot name="brand" />
       <nav>
         <Search />
         <slot name="nav" />

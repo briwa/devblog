@@ -1,13 +1,11 @@
 ---
 import Base from '../layouts/Base.astro';
 import JournalNav from '../components/JournalNav.jsx';
-import { SITE_NAME } from '../config.js';
 ---
 
-<Base title={`About — ${SITE_NAME}`}>
+<Base title="About" noIndex>
   <JournalNav slot="brand" current="about" client:load />
   <article class="about">
-    <h1>About</h1>
     <p>Intentionally blank.</p>
   </article>
 </Base>
