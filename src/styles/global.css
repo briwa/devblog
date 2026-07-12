@@ -752,14 +752,14 @@ iframe.jr-cover-media { pointer-events: none; background: var(--bg); }
 
 .ar-empty { color: var(--muted); margin-top: 1rem; }
 
-/* Loading skeleton reuses the row rhythm so the list doesn't shift when data lands. */
-.ar-row-skeleton { cursor: default; }
+/* Loading skeleton shimmer so the grid doesn't shift when data lands. */
 .ar-sk {
   height: 0.85rem; border-radius: 5px;
   background: linear-gradient(90deg, var(--rule) 0%, var(--code-bg) 50%, var(--rule) 100%);
   background-size: 200% 100%; animation: sk-shimmer 1.4s ease-in-out infinite;
 }
-.ar-sk-date { width: 2.5rem; }
+/* Card-grid skeleton: a 4/3 cover box above a title bar, matching PostCard. */
+.ar-sk-cover { height: auto; aspect-ratio: 4 / 3; border-radius: 9px; }
 @media (prefers-reduced-motion: reduce) { .ar-sk { animation: none; background: var(--rule); } }
 
 .ar-pager { display: flex; align-items: center; justify-content: center; gap: 1.25rem; margin-top: 2.4rem; color: var(--muted); font-size: 0.82rem; }

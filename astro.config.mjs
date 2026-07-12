@@ -21,7 +21,7 @@ import {
   uploadRefs,
 } from './src/lib/publish.js';
 // Shared with the real /data endpoints; kept astro:content-free so this Vite config can import it.
-import { entrySummary, published, yearsOf } from './src/lib/entryData.js';
+import { entryCard, published, yearsOf } from './src/lib/entryData.js';
 import { entryPreview, HOME_RECENT } from './src/lib/entryPreview.js';
 
 // Dev-only: emulate the editor's /admin/api/* write routes against local disk (no server in prod).
@@ -74,7 +74,7 @@ function devPublish() {
         const files = (await readdir(dir).catch(() => []))
           .filter((f) => f.endsWith('.md'))
           .sort();
-        // The minimal post-like shape entrySummary/yearsOf expect (no astro:content here);
+        // The minimal post-like shape entryCard/yearsOf expect (no astro:content here);
         // `body` mirrors Astro's collection entry so entryPreview derives the same cover/excerpt.
         const posts = await Promise.all(
           files.map(async (f) => {
@@ -99,7 +99,7 @@ function devPublish() {
           return sendJson(res, 200, { spotlight: cards[0] || null, recent: cards.slice(1) });
         }
         const year = yearMatch[1];
-        return sendJson(res, 200, live.filter((p) => p.id.slice(0, 4) === year).map(entrySummary));
+        return sendJson(res, 200, live.filter((p) => p.id.slice(0, 4) === year).map(entryCard));
       });
 
       // Read one entry's source for the single /admin/edit page (loaded at runtime, not prerendered per post).

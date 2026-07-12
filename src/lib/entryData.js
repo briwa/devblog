@@ -1,5 +1,6 @@
 import { createdOf } from './created.js';
 import { parseTags } from './tags.js';
+import { entryPreview } from './entryPreview.js';
 
 // Kept PURE (no astro:content) so both the prerendered /data endpoints and devPublish's dev mirror share one definition.
 // Both sides supply the minimal post-like shape: { id, data: { title, tags } }.
@@ -9,6 +10,9 @@ export const entrySummary = (p) => ({
   iso: createdOf(p).toISOString(),
   tags: parseTags(p.data.tags),
 });
+
+// entrySummary plus the cover/excerpt the grid previews need; body-derived, so callers must supply p.body.
+export const entryCard = (p) => ({ ...entrySummary(p), ...entryPreview(p.body || '') });
 
 // Draft partitioning in one place so "what counts as published" is decided once.
 export const isDraft = (p) => Boolean(p.data.draft);
@@ -21,6 +25,6 @@ export const yearsOf = (posts) =>
 
 export function entriesByYear(posts) {
   const byYear = {};
-  for (const p of posts) (byYear[p.id.slice(0, 4)] ||= []).push(entrySummary(p));
+  for (const p of posts) (byYear[p.id.slice(0, 4)] ||= []).push(entryCard(p));
   return Object.entries(byYear).map(([year, entries]) => ({ params: { year }, props: { entries } }));
 }

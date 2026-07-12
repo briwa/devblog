@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { fmtDay, fmtMonthYear } from "../lib/dates.js";
-import PostRow from "./PostRow.jsx";
+import { fmtMonthYear } from "../lib/dates.js";
+import PostCard from "./PostCard.jsx";
 
 const PAGE_SIZE = 8;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -160,11 +160,11 @@ export default function Archive() {
       )}
 
       {entries === null ? (
-        <div className="ar-list" aria-hidden="true">
+        <div className="jr-grid" aria-hidden="true">
           {Array.from({ length: PAGE_SIZE }).map((_, i) => (
-            <div className="ar-row ar-row-skeleton" key={i}>
-              <span className="ar-sk" style={{ width: `${45 + ((i * 13) % 40)}%` }} />
-              <span className="ar-sk ar-sk-date" />
+            <div className="jr-card ar-card-skeleton" key={i}>
+              <span className="jr-card-cover ar-sk ar-sk-cover" />
+              <span className="ar-sk" style={{ width: `${55 + ((i * 13) % 35)}%` }} />
             </div>
           ))}
         </div>
@@ -178,9 +178,9 @@ export default function Archive() {
         </p>
       ) : (
         <>
-          <div className="ar-list">
+          <div className="jr-grid">
             {pageItems.map((e) => (
-              <PostRow key={e.id} href={`/posts/${e.id}/`} title={e.title} tags={e.tags} date={fmtDay(e.iso)} />
+              <PostCard key={e.id} entry={e} />
             ))}
           </div>
 
