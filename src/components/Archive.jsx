@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { fmtMonthYear } from "../lib/dates.js";
 import PostCard from "./PostCard.jsx";
 
-const PAGE_SIZE = 8;
+const PAGE_SIZE = 9;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 const ChevronL = () => (
