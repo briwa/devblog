@@ -2,6 +2,7 @@
 import Base from '../layouts/Base.astro';
 import Home from '../components/Home.jsx';
 import JournalNav from '../components/JournalNav.jsx';
+import AdminFab from '../components/AdminFab.astro';
 
 // Home fetches the spotlight + recent grid at runtime so the static HTML doesn't grow with the archive.
 ---
@@ -9,4 +10,5 @@ import JournalNav from '../components/JournalNav.jsx';
 <Base>
   <JournalNav slot="brand" current="home" client:load />
   <Home client:only="react" />
+  <AdminFab />
 </Base>

@@ -1,0 +1,19 @@
+---
+import Icon from './Icon.astro';
+import { CAN_CREATE, CAN_EDIT } from '../lib/permissions.js';
+---
+
+{(CAN_CREATE || CAN_EDIT) && (
+  <div class="editor-fab home-fab" role="toolbar" aria-label="Admin actions">
+    {CAN_CREATE && (
+      <a class="fab-btn fab-new" href="/admin/new/" aria-label="New entry" title="New entry">
+        <Icon name="newPost" size={19} />
+      </a>
+    )}
+    {CAN_EDIT && (
+      <a class="fab-btn" href="/admin/drafts/" aria-label="Drafts" title="Drafts">
+        <Icon name="paper" size={18} />
+      </a>
+    )}
+  </div>
+)}

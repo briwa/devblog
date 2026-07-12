@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CAN_CREATE, CAN_EDIT } from "../lib/permissions.js";
 import { fmtDay, fmtMonthYear } from "../lib/dates.js";
 import PostRow from "./PostRow.jsx";
 
@@ -150,14 +149,6 @@ export default function Archive() {
             </div>
           )}
         </div>
-
-        {(CAN_CREATE || CAN_EDIT) && (
-          <span className="ar-admin">
-            {CAN_CREATE && <a href="/admin/new/" className="hm-new">New</a>}
-            {CAN_CREATE && CAN_EDIT && <span className="hm-sep" aria-hidden="true">|</span>}
-            {CAN_EDIT && <a href="/admin/drafts/" className="hm-drafts">Drafts</a>}
-          </span>
-        )}
       </div>
 
       {activeTag && (

@@ -5,7 +5,7 @@ export default function AdminDrafts({ drafts = [] }) {
   return (
     <div className="archive admin-drafts">
       <div className="ar-head">
-        <a href="/archive" className="hm-drafts">← Archive</a>
+        <a href="/" className="hm-drafts">← Home</a>
       </div>
 
       {drafts.length === 0 ? (

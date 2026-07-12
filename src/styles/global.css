@@ -88,9 +88,6 @@ a:hover { text-decoration: none; }
 .entry-updated { font-style: italic; opacity: 0.8; }
 .entry-updated::before { content: "·"; margin-right: 0.5rem; font-style: normal; opacity: 0.7; }
 
-.hm-sep { color: var(--rule); }
-.hm-new { color: var(--accent); font-weight: inherit; }
-.hm-new:hover { text-decoration: underline; }
 .hm-drafts { color: var(--muted); font-size: 0.8rem; text-decoration: none; }
 .hm-drafts:hover { color: var(--accent); }
 
@@ -349,6 +346,9 @@ a.hashtag:hover { color: var(--accent); }
 .fab-btn.fab-new { color: #fff; background: var(--accent); text-decoration: none; }
 .fab-btn.fab-new:hover { color: #fff; background: var(--accent); filter: brightness(1.08); }
 .fab-divider { align-self: stretch; height: 1px; margin: 0.15rem 0; background: var(--rule); }
+
+/* Home/archive admin FAB: two links, roomier gap. */
+.home-fab { gap: 0.5rem; }
 
 /* No room for a side gutter on narrow screens — dock it bottom-right instead. */
 @media (max-width: 56rem) {
@@ -726,8 +726,6 @@ iframe.jr-cover-media { pointer-events: none; background: var(--bg); }
 .ar-mp-month:hover:not(:disabled):not(.selected) { background: var(--hover-bg); }
 .ar-mp-month.selected { background: var(--accent); color: #fff; }
 .ar-mp-month:disabled { color: var(--muted); opacity: 0.35; cursor: default; }
-
-.ar-admin { color: var(--muted); font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.4rem; }
 
 .ar-tagfilter { display: flex; align-items: center; gap: 0.5rem; margin: -0.75rem 0 1.25rem; font-size: 0.82rem; }
 .ar-tagfilter-label { color: var(--muted); }
