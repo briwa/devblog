@@ -20,7 +20,7 @@ export function Cover({ cover }) {
 
 export const play = (el, on) => el.querySelector("iframe")?.contentWindow?.postMessage({ __figplay: on }, "*");
 
-// The little grid preview shared by the home recent list and the archive.
+// The little grid preview shared by the recent list and the timeline grid pages.
 export default function PostCard({ entry: e }) {
   return (
     <div className="jr-card">

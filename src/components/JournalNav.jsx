@@ -4,7 +4,6 @@ import { SITE_NAME } from "../config.js";
 const VIEWS = [
   { key: "home", label: "Home", href: "/" },
   { key: "about", label: "About", href: "/about" },
-  { key: "archive", label: "Archive", href: "/archive", divider: true },
 ];
 
 export default function JournalNav({ current = "home" }) {

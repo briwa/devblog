@@ -20,5 +20,5 @@ export function serializeTags(tags) {
 }
 
 export function tagHref(name) {
-  return `/archive?tag=${encodeURIComponent(name)}`;
+  return `/?tag=${encodeURIComponent(name)}`;
 }

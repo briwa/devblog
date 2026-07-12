@@ -91,11 +91,6 @@ a:hover { text-decoration: none; }
 .hm-drafts { color: var(--muted); font-size: 0.8rem; text-decoration: none; }
 .hm-drafts:hover { color: var(--accent); }
 
-@keyframes sk-shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-
 /* Faint side rails for edit mode; the negative margin pushes them into the gutter
    so the text column doesn't shift when toggling edit. */
 .entry {
@@ -347,7 +342,7 @@ a.hashtag:hover { color: var(--accent); }
 .fab-btn.fab-new:hover { color: #fff; background: var(--accent); filter: brightness(1.08); }
 .fab-divider { align-self: stretch; height: 1px; margin: 0.15rem 0; background: var(--rule); }
 
-/* Home/archive admin FAB: two links, roomier gap. */
+/* Home admin FAB: two links, roomier gap. */
 .home-fab { gap: 0.5rem; }
 
 /* No room for a side gutter on narrow screens — dock it bottom-right instead. */
@@ -648,7 +643,7 @@ iframe.jr-cover-media { pointer-events: none; background: var(--bg); }
 .jr-spotlight.is-textonly .jr-spot-title { color: var(--ink); text-shadow: none; }
 .jr-spotlight.is-textonly .jr-spot-excerpt { margin-top: 0.9rem; }
 .jr-spot-excerpt { font-size: 1rem; line-height: 1.72; color: var(--muted); margin: 1.35rem 0 0; max-width: 60ch; }
-.jr-spot-more { font-size: 0.78rem; color: var(--accent); white-space: nowrap; text-decoration: none; }
+.jr-spot-more { font-size: 0.78rem; color: var(--accent); white-space: nowrap; text-decoration: none; margin-left: 0.5rem }
 .jr-spot-more:hover { text-decoration: underline; }
 .jr-more { color: var(--accent); white-space: nowrap; text-decoration: none; }
 .jr-more:hover { text-decoration: underline; }
@@ -665,13 +660,24 @@ iframe.jr-cover-media { pointer-events: none; background: var(--bg); }
 .jr-card-link:hover ~ .jr-card-title { color: var(--accent); }
 .jr-card-date { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
 
-.jr-foot { display: flex; justify-content: flex-end; margin-top: 1.6rem; }
-.jr-archive { font-size: 0.82rem; color: var(--muted); }
-.jr-archive:hover { color: var(--accent); text-decoration: none; }
+/* Loading skeleton: a shimmer placeholder shaped like the spotlight page so the grid doesn't shift when data lands. */
+@keyframes sk-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.sk {
+  border-radius: 5px;
+  background: linear-gradient(90deg, var(--rule) 0%, var(--code-bg) 50%, var(--rule) 100%);
+  background-size: 200% 100%; animation: sk-shimmer 1.4s ease-in-out infinite;
+}
+.sk-line { height: 0.85rem; }
+.sk-spot-cover { aspect-ratio: 16 / 9; border-radius: 14px; }
+.sk-card-cover { aspect-ratio: 4 / 3; border-radius: 9px; }
+@media (prefers-reduced-motion: reduce) { .sk { animation: none; background: var(--rule); } }
 
 @media (max-width: 34rem) {
   .jr-spot-title { font-size: 1.5rem; }
-  /* Recent posts collapse to archive-style title/date rows — no cover, excerpt, or tags. */
+  /* Recent posts collapse to compact title/date rows — no cover, excerpt, or tags. */
   .jr-grid { display: block; }
   .jr-card {
     flex-direction: row; align-items: center; justify-content: space-between; gap: 1rem;
@@ -680,7 +686,9 @@ iframe.jr-cover-media { pointer-events: none; background: var(--bg); }
     transition: background 0.12s;
   }
   .jr-card:hover { background: var(--hover-bg); }
-  .jr-card-cover, .jr-card-excerpt, .jr-card-tags { display: none; }
+  .jr-card-cover, .jr-card-excerpt, .jr-card-tags, .sk-card-cover { display: none; }
+  /* Skeleton cards collapse to a single loading row like the real ones. */
+  .jr-card .sk-line { flex: 1 1 auto; width: auto !important; }
   .jr-card-title {
     flex: 0 1 auto; min-width: 0;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -689,7 +697,7 @@ iframe.jr-cover-media { pointer-events: none; background: var(--bg); }
   .jr-card-date { flex-shrink: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
 }
 
-/* ── Archive: month selector + paginated list ────────────────────────── */
+/* ── Timeline grid pages: month selector + pagination ────────────────── */
 .ar-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 1.6rem 0 1.75rem; }
 .ar-period { position: relative; }
 .ar-period-trigger {
@@ -751,16 +759,6 @@ iframe.jr-cover-media { pointer-events: none; background: var(--bg); }
 .ar-row-date { font-size: 0.82rem; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 .ar-empty { color: var(--muted); margin-top: 1rem; }
-
-/* Loading skeleton shimmer so the grid doesn't shift when data lands. */
-.ar-sk {
-  height: 0.85rem; border-radius: 5px;
-  background: linear-gradient(90deg, var(--rule) 0%, var(--code-bg) 50%, var(--rule) 100%);
-  background-size: 200% 100%; animation: sk-shimmer 1.4s ease-in-out infinite;
-}
-/* Card-grid skeleton: a 4/3 cover box above a title bar, matching PostCard. */
-.ar-sk-cover { height: auto; aspect-ratio: 4 / 3; border-radius: 9px; }
-@media (prefers-reduced-motion: reduce) { .ar-sk { animation: none; background: var(--rule); } }
 
 .ar-pager { display: flex; align-items: center; justify-content: center; gap: 1.25rem; margin-top: 2.4rem; color: var(--muted); font-size: 0.82rem; }
 .ar-pager-btn {
