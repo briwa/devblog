@@ -614,7 +614,6 @@ a.hashtag:hover { color: var(--accent); }
 .jn-dd-menu a.active { color: var(--accent); }
 
 /* ── Journal home: spotlight + recent grid ───────────────────────────── */
-.jr-loading { min-height: 60vh; }
 .jr-empty { color: var(--muted); margin-top: 3rem; }
 
 .jr-spotlight { margin: 0.5rem 0 1.5rem; }

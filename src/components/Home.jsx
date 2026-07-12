@@ -33,7 +33,7 @@ export default function Home() {
   }, []);
 
   if (error) return <p className="jr-empty">Couldn’t load entries.</p>;
-  if (!data) return <div className="jr-loading" aria-hidden="true" />;
+  if (!data) return null;
 
   const { spotlight, recent } = data;
   if (!spotlight) return <p className="jr-empty">No entries yet.</p>;
