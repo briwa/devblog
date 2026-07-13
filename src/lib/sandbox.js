@@ -10,6 +10,55 @@ const PRESETS = new Set(['canvas', 'svg', 'root']);
 const DEFAULT_W = 640;
 const DEFAULT_H = 360;
 
+// The figure types offered in the sandbox editor: js presets plus vue (its own lang).
+export const SANDBOX_TYPES = ['canvas', 'svg', 'root', 'vue'];
+export { DEFAULT_W, DEFAULT_H };
+
+// Reduce a parsed figure block to the toolbar's editable state (type folds lang + preset).
+export function specToToolbar(spec = {}) {
+  return {
+    type: spec.vue ? 'vue' : (spec.preset || 'canvas'),
+    w: spec.w || DEFAULT_W,
+    h: spec.h || DEFAULT_H,
+    bg: spec.bg || '',
+    showCode: Boolean(spec.showCode),
+    auto: Boolean(spec.auto),
+    preview: Boolean(spec.preview),
+    id: spec.id || '',
+  };
+}
+
+// Serialize toolbar state back into a fence lang + meta string (inverse of parseMeta for figures).
+export function serializeSandboxMeta({ type, w, h, bg, showCode, auto, preview, id }) {
+  const lang = type === 'vue' ? 'vue' : 'js';
+  const tokens = [];
+  if (type !== 'vue') tokens.push(type); // preset token; vue figures carry no preset
+  if (w && h && !(Number(w) === DEFAULT_W && Number(h) === DEFAULT_H)) tokens.push(`${w}x${h}`);
+  if (bg) tokens.push(`bg="${bg}"`);
+  if (showCode) tokens.push('code');
+  if (auto && type !== 'vue') tokens.push('auto'); // vue is interactive on load, no deferral
+  if (preview) tokens.push('preview');
+  if (id) tokens.push(`id="${id}"`);
+  return { lang, meta: tokens.join(' ') };
+}
+
+// Build a complete fenced block from toolbar state + code, ready to splice into the document.
+export function buildSandboxFence(state, code) {
+  const { lang, meta } = serializeSandboxMeta(state);
+  const head = meta ? `${lang} ${meta}` : lang;
+  return '```' + head + '\n' + (code || '') + '\n```';
+}
+
+// Build a lib block: 'external' (URL body), 'source' (shared js), or 'vue' (shared SFC component).
+export function buildLibFence({ kind, label = '', name = '', id = '' }, code = '') {
+  let head;
+  if (kind === 'external') head = 'js external-lib' + (label ? `="${label}"` : '');
+  else if (kind === 'vue') head = `vue lib="${name}"`;
+  else head = 'js lib' + (label ? `="${label}"` : '');
+  if (id) head += ` id="${id}"`;
+  return '```' + head + '\n' + (code || '') + '\n```';
+}
+
 // Vue runtime + SFC loader, auto-injected into every `vue` frame (the language's runtime, not an optional lib).
 const VUE_SRC = 'https://cdn.jsdelivr.net/npm/vue@3/dist/vue.runtime.global.prod.js';
 const SFC_LOADER_SRC = 'https://cdn.jsdelivr.net/npm/vue3-sfc-loader@0.9/dist/vue3-sfc-loader.js';
@@ -169,7 +218,8 @@ export function buildVueSrcdoc({ w, h, bg }, code, { externals = [], components 
 }
 
 // Build one figure's inner document. Returns the RAW string (callers escape it) — keep attribute-agnostic, or it double-encodes.
-export function buildSrcdoc({ preset, w, h, bg, auto, hover }, code, prelude = '', externals = []) {
+// `control` (editor preview only): auto-run but keep the rAF loop pausable via {__figplay}/{__figpause} messages.
+export function buildSrcdoc({ preset, w, h, bg, auto, hover, control }, code, prelude = '', externals = []) {
   const isCanvas = preset === 'canvas';
   // The emitted boilerplate is TERSE on purpose — it's inlined into every srcdoc, so its comments/indentation would ship verbatim.
   // `root` is a bare sized mount point so a container-owning library (Konva, Pts, Pixi) can take it directly.
@@ -192,7 +242,7 @@ export function buildSrcdoc({ preset, w, h, bg, auto, hover }, code, prelude = '
     .join('');
 
   // canvas/root default to PAUSED behind an in-frame play button (spares rAF, and behaves identically on page + editor preview).
-  const deferred = (isCanvas || isRoot) && !auto && !hover;
+  const deferred = (isCanvas || isRoot) && !auto && !hover && !control;
   const playBtn = deferred
     ? `<button id="__play" type="button" aria-label="Run figure"><svg viewBox="0 0 100 100" width="30" height="30" aria-hidden="true"><polygon points="38,28 38,72 74,50" fill="currentColor"/></svg></button>`
     : '';
@@ -220,15 +270,19 @@ export function buildSrcdoc({ preset, w, h, bg, auto, hover }, code, prelude = '
     ? `const __fx=[${fetched.map((u) => JSON.stringify(u)).join(',')}];` +
       `const start=()=>__fx.reduce((p,u)=>p.then(()=>fetch(u)).then(r=>{if(!r.ok)throw new Error('external-lib '+u+' failed: HTTP '+r.status);return r.text()}).then(t=>{const s=document.createElement('script');s.textContent=t;document.head.appendChild(s)}),Promise.resolve()).then(run,e=>{document.body.innerHTML='<pre class=err>'+(e&&e.stack||e)+'</pre>';report()});`
     : `const start=run;`;
-  // hover: draw the first frame and freeze; the parent postMessages {__figplay} to run/pause the loop.
+  // hover: draw first frame and freeze. control: auto-run but hold the rAF handle so it can be paused/resumed.
   const loopDef = hover
     ? `let __fn=null,__raf=null;const loop=(fn)=>{__fn=fn;fn(0)};`
-    : `const loop=(fn)=>{let id;const t=(ts)=>{fn(ts);id=requestAnimationFrame(t)};id=requestAnimationFrame(t);return ()=>cancelAnimationFrame(id)};`;
+    : control
+      ? `let __fn=null,__raf=null;const __tick=(ts)=>{__fn(ts);__raf=requestAnimationFrame(__tick)};const loop=(fn)=>{__fn=fn;fn(0);__raf=requestAnimationFrame(__tick);return ()=>{if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}}};`
+      : `const loop=(fn)=>{let id;const t=(ts)=>{fn(ts);id=requestAnimationFrame(t)};id=requestAnimationFrame(t);return ()=>cancelAnimationFrame(id)};`;
   const tail = deferred
     ? `const __play=document.getElementById('__play'),__c=getComputedStyle(document.body).backgroundColor.match(/[\\d.]+/g);if(__c&&(__c.length<4||+__c[3]>0)&&(0.299*__c[0]+0.587*__c[1]+0.114*__c[2])<128)__play.classList.add('on-dark');__play.addEventListener('click',()=>{__play.remove();start()});report();`
-    : hover
-      ? `start();addEventListener('message',function(e){if(!__fn)return;if(e.data&&e.data.__figplay){if(__raf==null){var _t=function(ts){__fn(ts);__raf=requestAnimationFrame(_t)};__raf=requestAnimationFrame(_t)}}else if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}});`
-      : `start();`;
+    : control
+      ? `start();addEventListener('message',function(e){if(!e.data)return;if(e.data.__figpause){if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}}else if(e.data.__figplay){if(__raf==null&&__fn){__raf=requestAnimationFrame(__tick)}}});`
+      : hover
+        ? `start();addEventListener('message',function(e){if(!__fn)return;if(e.data&&e.data.__figplay){if(__raf==null){var _t=function(ts){__fn(ts);__raf=requestAnimationFrame(_t)};__raf=requestAnimationFrame(_t)}}else if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}});`
+        : `start();`;
   const script =
     setup +
     loopDef +

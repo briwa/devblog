@@ -558,6 +558,204 @@ a.hashtag:hover { color: var(--accent); }
 .cm-sandbox-show:hover,
 .sandbox-toggle:hover { color: var(--ink); }
 
+/* Compact card that replaces a figure fence in the source editor (sandboxPreview.js).
+   The raw source is hidden — editing happens in the full-screen SandboxModal. */
+.cm-sbx-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin: 0.5rem 0;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ink) 3%, transparent);
+}
+.cm-sbx-chips { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; }
+.cm-sbx-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+.cm-sbx-chip {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.7rem;
+  line-height: 1;
+  color: var(--muted);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 0.22rem 0.42rem;
+}
+.cm-sbx-actions { display: flex; align-items: center; gap: 0.4rem; }
+.cm-sbx-actions-preview { justify-content: flex-end; padding-top: 0.4rem; }
+.cm-sbx-btn {
+  font-family: inherit;
+  font-size: 0.7rem;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+}
+.cm-sbx-btn:hover { color: var(--ink); }
+.cm-sbx-btn.danger:hover { color: #c0392b; border-color: #c0392b; }
+
+/* Full-screen figure editor: meta toolbar on top, code + live preview split below. */
+.sbx-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+.sbx-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--rule);
+}
+.sbx-toolbar { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 0.9rem; }
+.sbx-field { display: flex; flex-direction: column; gap: 0.25rem; }
+.sbx-field > span {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.sbx-field input,
+.sbx-field select {
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  padding: 0.3rem 0.45rem;
+}
+.sbx-field input[type="number"] { width: 4.5rem; }
+.sbx-field input[type="text"] { width: 9rem; }
+.sbx-size { display: flex; align-items: center; gap: 0.35rem; color: var(--muted); }
+.sbx-toggles { display: flex; flex-wrap: wrap; gap: 0.7rem; padding-bottom: 0.35rem; }
+.sbx-check {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+.sbx-actions { display: flex; gap: 0.5rem; }
+.sbx-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--ink);
+  background: none;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 0.4rem 0.7rem;
+  cursor: pointer;
+}
+.sbx-btn:hover { border-color: var(--ink); }
+.sbx-btn.save { color: var(--accent); border-color: var(--accent); }
+.sbx-body { flex: 1; display: flex; min-height: 0; }
+.sbx-code {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  border-right: 1px solid var(--rule);
+}
+.sbx-code .cm-editor { height: 100%; }
+.sbx-preview {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  padding: 1rem;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background: color-mix(in srgb, var(--ink) 2%, transparent);
+}
+.sbx-preview { flex-direction: column; align-items: stretch; justify-content: flex-start; }
+.sbx-controls { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
+.sbx-ctl {
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--ink);
+  background: none;
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+}
+.sbx-ctl:hover { border-color: var(--ink); }
+.sbx-frame {
+  width: 100%;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--bg);
+}
+/* Source/vue-lib editing has no preview: the code pane takes the full width. */
+.sbx-body-solo .sbx-code { border-right: none; }
+@media (max-width: 56rem) {
+  .sbx-body { flex-direction: column; }
+  .sbx-code { border-right: none; border-bottom: 1px solid var(--rule); }
+}
+
+/* Small centered dialog for external-lib URLs (SandboxExternalModal). */
+.sbx-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: color-mix(in srgb, var(--ink) 30%, transparent);
+}
+.sbx-dialog {
+  width: min(34rem, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1.2rem;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+}
+.sbx-dialog-title { margin: 0; font-size: 1rem; }
+.sbx-field-block { display: flex; flex-direction: column; gap: 0.3rem; }
+.sbx-field-block > span {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.sbx-urls {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.82rem;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 0.5rem;
+  resize: vertical;
+}
+.sbx-warn { margin: 0; font-size: 0.8rem; color: #c0392b; word-break: break-all; }
+.sbx-dialog-row { display: flex; gap: 0.9rem; flex-wrap: wrap; }
+
 .cm-host .cm-editor { background: transparent; }
 .cm-host .cm-editor.cm-focused { outline: none; }
 

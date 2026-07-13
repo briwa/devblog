@@ -14,6 +14,9 @@ import { parseTags, serializeTags, tagHref } from "../../lib/tags.js";
 import { uploadFilename } from "../../lib/publish.js";
 import { loadDraft, saveDraft, clearDraft } from "../../lib/editorDraft.js";
 import { sandboxPreview } from "../../lib/sandboxPreview.js";
+import SandboxModal from "./SandboxModal.jsx";
+import SandboxExternalModal from "./SandboxExternalModal.jsx";
+import { findSandboxBlocks, specToToolbar, DEFAULT_W, DEFAULT_H } from "../../lib/sandbox.js";
 import { CAN_DELETE } from "../../lib/permissions.js";
 import EntryDates from "../EntryDates.jsx";
 import { DayPicker } from "react-day-picker";
@@ -73,6 +76,7 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
   const [toast, setToast] = useState(null);
   const [scrolled, setScrolled] = useState(false);
   const [fabBottom, setFabBottom] = useState(null); // px; lifts above the mobile keyboard
+  const [sandboxEdit, setSandboxEdit] = useState(null); // { mode, from, to, initial, siblings }
   const hostRef = useRef(null);
   const cmRef = useRef(null);
   const fileRef = useRef(null);
@@ -174,7 +178,10 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
           markdown({ base: markdownLanguage, codeLanguages: languages }),
           syntaxHighlighting(highlight),
           theme,
-          sandboxPreview(),
+          sandboxPreview({
+            onEdit: (b) => onEditRef.current?.(b),
+            onCreate: (kind, p) => onCreateRef.current?.(kind, p),
+          }),
 
           EditorView.updateListener.of((u) => {
             if (!u.docChanged) return;
@@ -252,6 +259,47 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
     if (!view) return;
     const pos = view.state.selection.main.head;
     view.dispatch({ changes: { from: pos, insert: text }, selection: { anchor: pos + text.length } });
+    view.focus();
+  }
+
+  // Sandbox figures are edited in a modal, not inline. These bridge the CodeMirror widget
+  // buttons (see sandboxPreview.js) to the React modal; refs keep the callbacks current.
+  const onEditRef = useRef();
+  const onCreateRef = useRef();
+  onEditRef.current = (block) => {
+    const siblings = findSandboxBlocks(cmRef.current?.state.doc.toString() ?? "");
+    const base = { from: block.from, to: block.to, siblings };
+    if (block.snippet) {
+      setSandboxEdit({ ...base, modal: "source", initial: { srcLang: "js", name: block.summary, id: block.id, code: block.code } });
+    } else if (block.vueLib) {
+      setSandboxEdit({ ...base, modal: "source", initial: { srcLang: "vue", name: block.componentName, id: block.id, code: block.code } });
+    } else if (block.external) {
+      setSandboxEdit({ ...base, modal: "external", initial: { label: block.summary, id: block.id, code: block.code } });
+    } else {
+      setSandboxEdit({ ...base, modal: "figure", initial: { ...specToToolbar(block), code: block.code } });
+    }
+  };
+  onCreateRef.current = (kind, pos) => {
+    const siblings = findSandboxBlocks(cmRef.current?.state.doc.toString() ?? "");
+    const base = { from: pos, to: pos, siblings };
+    if (kind === "external") {
+      setSandboxEdit({ ...base, modal: "external", initial: { label: "", id: "", code: "" } });
+    } else if (kind === "source") {
+      setSandboxEdit({ ...base, modal: "source", initial: { srcLang: "js", name: "", id: "", code: "" } });
+    } else {
+      setSandboxEdit({ ...base, modal: "figure", initial: { type: "canvas", w: DEFAULT_W, h: DEFAULT_H, bg: "", showCode: false, auto: false, preview: false, id: "", code: "// your code" } });
+    }
+  };
+
+  function saveSandbox(fence) {
+    const view = cmRef.current;
+    setSandboxEdit(null);
+    if (!view || !sandboxEdit) return;
+    const { from, to } = sandboxEdit;
+    const isNewBlock = from === to; // a fresh insert has no range to replace
+    let insert = fence;
+    if (isNewBlock && from > 0 && view.state.doc.sliceString(from - 1, from) !== "\n") insert = "\n" + insert;
+    view.dispatch({ changes: { from, to, insert }, selection: { anchor: from + insert.length } });
     view.focus();
   }
 
@@ -466,6 +514,24 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
       </div>
 
       <div className="cm-host" ref={hostRef}></div>
+
+      {sandboxEdit && (sandboxEdit.modal === "external" ? (
+        <SandboxExternalModal
+          key={`ext-${sandboxEdit.from}`}
+          initial={sandboxEdit.initial}
+          onSave={saveSandbox}
+          onCancel={() => setSandboxEdit(null)}
+        />
+      ) : (
+        <SandboxModal
+          key={`${sandboxEdit.modal}-${sandboxEdit.from}`}
+          kind={sandboxEdit.modal}
+          initial={sandboxEdit.initial}
+          siblings={sandboxEdit.siblings}
+          onSave={saveSandbox}
+          onCancel={() => setSandboxEdit(null)}
+        />
+      ))}
 
       {toastEl}
       <div className="editor-fab" role="toolbar" aria-label="Editor actions" style={fabStyle}>
