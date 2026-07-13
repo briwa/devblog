@@ -701,6 +701,8 @@ a.hashtag:hover { color: var(--accent); }
   cursor: pointer;
 }
 .sbx-ctl:hover { border-color: var(--ink); }
+.sbx-ctl.primary { color: var(--accent); border-color: var(--accent); }
+.sbx-live { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; color: var(--muted); cursor: pointer; }
 .sbx-frame {
   width: 100%;
   border: 1px solid var(--rule);

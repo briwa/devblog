@@ -49,10 +49,16 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
   const [name, setName] = useState(initial.name || "");
   // Shared
   const [groupId, setGroupId] = useState(initial.id || "");
-  const [code, setCode] = useState(initial.code || "");
   const [srcdoc, setSrcdoc] = useState("");
-  const [playing, setPlaying] = useState(true);
-  const [resetKey, setResetKey] = useState(0);
+  const [previewW, setPreviewW] = useState(initial.w || 640); // frame width of the *built* preview
+  const [playing, setPlaying] = useState(false); // preview starts paused; Play runs it
+  // Bumped on every (re)build and reset — used as the iframe key so it always fully remounts.
+  // Updating an iframe's srcdoc attribute in place doesn't reliably reload it, so we recreate it.
+  const [frameKey, setFrameKey] = useState(0);
+  const [live, setLive] = useState(false); // auto-update the preview as you edit (off by default)
+  const [docTick, setDocTick] = useState(0); // bumped on each edit, but only while live is on
+  const liveRef = useRef(live);
+  liveRef.current = live;
 
   const hostRef = useRef(null);
   const cmRef = useRef(null);
@@ -61,7 +67,21 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
   const codeLang = isFigure ? (type === "vue" ? "vue" : "javascript") : (srcLang === "vue" ? "vue" : "javascript");
   const canPlay = isFigure && type !== "vue"; // js figures own the pausable rAF loop
 
-  // One-time editor setup; code changes flow out through the update listener.
+  // Rebuild the preview from the current code + meta. Manual (not on every keystroke) so the
+  // author controls when the figure re-runs; the frame reloads paused (see buildSrcdoc control).
+  function updatePreview() {
+    if (!isFigure) return;
+    const body = cmRef.current ? cmRef.current.state.doc.toString() : initial.code || "";
+    const width = Number(w) || 0;
+    // Sandboxed iframes force a white backdrop that no CSS can make transparent; without an
+    // explicit bg, paint the theme's bg so an unpainted canvas blends with the editor.
+    const themeBg = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim();
+    setSrcdoc(buildPreview({ type, w: width, h: Number(h) || 0, bg: bg || themeBg, id: groupId }, body, siblings));
+    setPreviewW(width || 640);
+    setFrameKey((k) => k + 1); // force the iframe to remount with the new srcdoc
+  }
+
+  // One-time editor setup, then build the initial preview once.
   useEffect(() => {
     const view = new EditorView({
       state: EditorState.create({
@@ -79,7 +99,8 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
             "&.cm-focused": { outline: "none" },
           }),
           EditorView.updateListener.of((u) => {
-            if (u.docChanged) setCode(u.state.doc.toString());
+            // Only trigger re-renders while live preview is on; otherwise typing is free.
+            if (u.docChanged && liveRef.current) setDocTick((t) => t + 1);
           }),
         ],
       }),
@@ -87,6 +108,7 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
     });
     cmRef.current = view;
     view.focus();
+    updatePreview();
     return () => { view.destroy(); cmRef.current = null; };
   }, []);
 
@@ -95,20 +117,15 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
     if (cmRef.current) cmRef.current.dispatch({ effects: langCompartment.reconfigure(langSupport(codeLang)) });
   }, [codeLang]);
 
-  // Debounce the preview so the iframe rebuilds on a pause, not every keystroke (figures only).
+  // Live mode: rebuild the preview shortly after edits or meta changes (debounced).
   useEffect(() => {
-    if (!isFigure) return;
-    const id = setTimeout(() => {
-      // Sandboxed iframes force a white backdrop that no CSS can make transparent; without an
-      // explicit bg, paint the theme's bg so an unpainted canvas blends with the editor.
-      const themeBg = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim();
-      setSrcdoc(buildPreview({ type, w: Number(w) || 0, h: Number(h) || 0, bg: bg || themeBg, id: groupId }, code, siblings));
-    }, 300);
+    if (!isFigure || !live) return;
+    const id = setTimeout(updatePreview, 400);
     return () => clearTimeout(id);
-  }, [isFigure, type, w, h, bg, groupId, code, siblings]);
+  }, [live, docTick, type, w, h, bg, groupId]);
 
-  // A fresh frame (new srcdoc or explicit reset) always starts running.
-  useEffect(() => { setPlaying(true); }, [srcdoc, resetKey]);
+  // Any fresh frame (rebuilt preview or explicit reset) starts paused.
+  useEffect(() => { setPlaying(false); }, [frameKey]);
 
   // Size the preview iframe to its content, matching the published figure's self-report.
   useEffect(() => {
@@ -135,10 +152,10 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
     win.postMessage(playing ? { __figpause: true } : { __figplay: true }, "*");
     setPlaying(!playing);
   }
-  function resetFrame() { setResetKey((k) => k + 1); }
+  function resetFrame() { setFrameKey((k) => k + 1); }
 
   function save() {
-    const body = cmRef.current ? cmRef.current.state.doc.toString() : code;
+    const body = cmRef.current ? cmRef.current.state.doc.toString() : initial.code || "";
     if (isFigure) {
       const state = { type, w: Number(w) || undefined, h: Number(h) || undefined, bg, showCode, auto, preview, id: groupId };
       onSave(buildSandboxFence(state, body));
@@ -229,13 +246,19 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
                   {playing ? "Pause" : "Play"}
                 </button>
               )}
-              <button className="sbx-ctl" onClick={resetFrame} title="Reset">Reset</button>
+              <button className="sbx-ctl" onClick={resetFrame} title="Restart the current preview">Reset</button>
+              <label className="sbx-live" title="Rebuild the preview automatically as you edit">
+                <input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} /> live
+              </label>
+              {!live && (
+                <button className="sbx-ctl primary" onClick={updatePreview} title="Rebuild the preview from the current code">Update</button>
+              )}
             </div>
             <iframe
-              key={resetKey}
+              key={frameKey}
               ref={frameRef}
               className="sbx-frame"
-              style={{ width: `${Number(w) || 640}px`, maxWidth: "100%" }}
+              style={{ width: `${previewW}px`, maxWidth: "100%" }}
               sandbox="allow-scripts"
               title="live figure preview"
               srcDoc={srcdoc}

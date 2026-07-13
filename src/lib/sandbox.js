@@ -274,7 +274,7 @@ export function buildSrcdoc({ preset, w, h, bg, auto, hover, control }, code, pr
   const loopDef = hover
     ? `let __fn=null,__raf=null;const loop=(fn)=>{__fn=fn;fn(0)};`
     : control
-      ? `let __fn=null,__raf=null;const __tick=(ts)=>{__fn(ts);__raf=requestAnimationFrame(__tick)};const loop=(fn)=>{__fn=fn;fn(0);__raf=requestAnimationFrame(__tick);return ()=>{if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}}};`
+      ? `let __fn=null,__raf=null;const __tick=(ts)=>{__fn(ts);__raf=requestAnimationFrame(__tick)};const loop=(fn)=>{__fn=fn;fn(0);return ()=>{if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}}};`
       : `const loop=(fn)=>{let id;const t=(ts)=>{fn(ts);id=requestAnimationFrame(t)};id=requestAnimationFrame(t);return ()=>cancelAnimationFrame(id)};`;
   const tail = deferred
     ? `const __play=document.getElementById('__play'),__c=getComputedStyle(document.body).backgroundColor.match(/[\\d.]+/g);if(__c&&(__c.length<4||+__c[3]>0)&&(0.299*__c[0]+0.587*__c[1]+0.114*__c[2])<128)__play.classList.add('on-dark');__play.addEventListener('click',()=>{__play.remove();start()});report();`
