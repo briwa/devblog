@@ -7,6 +7,7 @@ import { javascript } from "@codemirror/lang-javascript";
 import { vue } from "@codemirror/lang-vue";
 import Icon from "../Icon.jsx";
 import { codeHighlightStyle } from "../../lib/codeHighlight.js";
+import { loadSandboxDraft, saveSandboxDraft, clearSandboxDraft } from "../../lib/sandboxDraft.js";
 import {
   SANDBOX_TYPES,
   buildSandboxFence,
@@ -35,21 +36,25 @@ function buildPreview({ type, w, h, bg, id }, code, siblings) {
   return buildSrcdoc(spec, code, sandboxPrelude(siblings, id), sandboxExternals(siblings, id));
 }
 
-export default function SandboxModal({ kind = "figure", initial, siblings = [], onSave, onCancel }) {
+export default function SandboxModal({ kind = "figure", initial, siblings = [], onSave, onCancel, draftKey }) {
   const isFigure = kind === "figure";
+  // A crash-safe draft of unsaved edits (see sandboxDraft.js) wins over the block's saved content,
+  // so reopening this block after a reload/close restores the in-progress code + settings.
+  const [restored] = useState(() => (draftKey ? loadSandboxDraft(draftKey) : null));
+  const seed = restored ?? initial;
   // Figure state
-  const [type, setType] = useState(initial.type || "canvas");
-  const [w, setW] = useState(initial.w || 640);
-  const [h, setH] = useState(initial.h || 360);
-  const [bg, setBg] = useState(initial.bg || "");
-  const [showCode, setShowCode] = useState(Boolean(initial.showCode));
-  const [auto, setAuto] = useState(Boolean(initial.auto));
-  const [preview, setPreview] = useState(Boolean(initial.preview));
+  const [type, setType] = useState(seed.type || "canvas");
+  const [w, setW] = useState(seed.w || 640);
+  const [h, setH] = useState(seed.h || 360);
+  const [bg, setBg] = useState(seed.bg || "");
+  const [showCode, setShowCode] = useState(Boolean(seed.showCode));
+  const [auto, setAuto] = useState(Boolean(seed.auto));
+  const [preview, setPreview] = useState(Boolean(seed.preview));
   // Source-lib state
-  const [srcLang, setSrcLang] = useState(initial.srcLang || "js");
-  const [name, setName] = useState(initial.name || "");
+  const [srcLang, setSrcLang] = useState(seed.srcLang || "js");
+  const [name, setName] = useState(seed.name || "");
   // Shared
-  const [groupId, setGroupId] = useState(initial.id || "");
+  const [groupId, setGroupId] = useState(seed.id || "");
   const [srcdoc, setSrcdoc] = useState("");
   const [previewW, setPreviewW] = useState(initial.w || 640); // frame width of the *built* preview
   const [playing, setPlaying] = useState(false); // preview starts paused; Play runs it
@@ -63,6 +68,10 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
   const frameRef = useRef(null);
   const updateRef = useRef(null); // latest updatePreview, so the ⌘S handler (bound once) never goes stale
   const metaInitRef = useRef(false); // skip the mount pass when flagging meta edits dirty
+  const draftInitRef = useRef(false); // skip the mount pass when persisting meta edits
+  const clearedRef = useRef(false); // stops a pending flush from resurrecting a saved/discarded draft
+  const persistRef = useRef(null); // latest persist, so listeners bound once never go stale
+  const saveTimer = useRef(null);
 
   const codeLang = isFigure ? (type === "vue" ? "vue" : "javascript") : (srcLang === "vue" ? "vue" : "javascript");
   const canPlay = isFigure && type !== "vue"; // js figures own the pausable rAF loop
@@ -71,7 +80,7 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
   // author controls when the figure re-runs; the frame reloads paused (see buildSrcdoc control).
   function updatePreview() {
     if (!isFigure) return;
-    const body = cmRef.current ? cmRef.current.state.doc.toString() : initial.code || "";
+    const body = cmRef.current ? cmRef.current.state.doc.toString() : seed.code || "";
     const width = Number(w) || 0;
     // Sandboxed iframes force a white backdrop that no CSS can make transparent; without an
     // explicit bg, paint the theme's bg so an unpainted canvas blends with the editor.
@@ -83,11 +92,27 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
   }
   updateRef.current = updatePreview; // refreshed every render so ⌘S applies the current code + meta
 
+  // Persist the full working state (code + settings) so an accidental reload/close doesn't lose it.
+  const persist = () => {
+    if (!draftKey || clearedRef.current) return;
+    const code = cmRef.current ? cmRef.current.state.doc.toString() : (seed.code || "");
+    saveSandboxDraft(draftKey, { type, w, h, bg, showCode, auto, preview, srcLang, name, id: groupId, code });
+  };
+  persistRef.current = persist;
+  const scheduleSave = () => {
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => persistRef.current?.(), 500);
+  };
+  const scheduleSaveRef = useRef(scheduleSave);
+  scheduleSaveRef.current = scheduleSave;
+  // Drop the draft once the edit session ends (Save or Cancel); guards a pending flush too.
+  const finishDraft = () => { clearedRef.current = true; clearTimeout(saveTimer.current); if (draftKey) clearSandboxDraft(); };
+
   // One-time editor setup, then build the initial preview once.
   useEffect(() => {
     const view = new EditorView({
       state: EditorState.create({
-        doc: initial.code || "",
+        doc: seed.code || "",
         extensions: [
           history(),
           EditorView.lineWrapping,
@@ -97,14 +122,15 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
           // Read the shared --astro-code-* palette so the editor matches the published code block.
           EditorView.theme({
             "&": { height: "100%", color: "var(--astro-code-foreground, var(--ink))", background: "var(--astro-code-background, var(--bg))" },
-            ".cm-content": { caretColor: "var(--astro-code-foreground, var(--ink))" },
+            // Scroll-past-end: blank trailing space so the last line can rise off the bottom edge while typing.
+            ".cm-content": { caretColor: "var(--astro-code-foreground, var(--ink))", paddingBottom: "40vh" },
             ".cm-scroller": { fontFamily: "'Roboto Mono', ui-monospace, 'SF Mono', monospace", fontSize: "0.85rem", lineHeight: "1.7" },
             "&.cm-focused": { outline: "none" },
             ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": { background: "color-mix(in srgb, var(--astro-code-foreground, var(--ink)) 22%, transparent)" },
           }),
           EditorView.updateListener.of((u) => {
             // Flag unsaved edits so the floating save button appears; typing itself stays cheap.
-            if (u.docChanged) setDirty(true);
+            if (u.docChanged) { setDirty(true); scheduleSaveRef.current(); }
           }),
         ],
       }),
@@ -127,6 +153,19 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
     if (isFigure) setDirty(true);
   }, [type, w, h, bg, groupId]);
 
+  // Persist any settings change too (code changes are caught in the editor's update listener).
+  useEffect(() => {
+    if (!draftInitRef.current) { draftInitRef.current = true; return; }
+    scheduleSaveRef.current();
+  }, [type, w, h, bg, showCode, auto, preview, srcLang, name, groupId]);
+
+  // Flush synchronously on unload — the debounce timer won't survive a reload.
+  useEffect(() => {
+    const flush = () => persistRef.current?.();
+    window.addEventListener("pagehide", flush);
+    return () => { clearTimeout(saveTimer.current); window.removeEventListener("pagehide", flush); };
+  }, []);
+
   // Any fresh frame (rebuilt preview or explicit reset) starts paused.
   useEffect(() => { setPlaying(false); }, [frameKey]);
 
@@ -145,7 +184,7 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
 
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === "Escape") { onCancel(); return; }
+      if (e.key === "Escape") { finishDraft(); onCancel(); return; }
       // ⌘/Ctrl+S applies the current edits to the preview (never the browser's save dialog).
       if ((e.metaKey || e.ctrlKey) && (e.key === "s" || e.key === "S")) {
         e.preventDefault();
@@ -165,7 +204,8 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
   function resetFrame() { setFrameKey((k) => k + 1); }
 
   function save() {
-    const body = cmRef.current ? cmRef.current.state.doc.toString() : initial.code || "";
+    finishDraft();
+    const body = cmRef.current ? cmRef.current.state.doc.toString() : seed.code || "";
     if (isFigure) {
       const state = { type, w: Number(w) || undefined, h: Number(h) || undefined, bg, showCode, auto, preview, id: groupId };
       onSave(buildSandboxFence(state, body));
@@ -241,7 +281,7 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
           <button className="sbx-btn save" onClick={save} title="Save">
             <Icon name="check" size={17} /> Save
           </button>
-          <button className="sbx-btn" onClick={onCancel} title="Cancel">
+          <button className="sbx-btn" onClick={() => { finishDraft(); onCancel(); }} title="Cancel">
             <Icon name="close" size={17} /> Cancel
           </button>
         </div>

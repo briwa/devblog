@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { EditorView, keymap } from "@codemirror/view";
 import { EditorState } from "@codemirror/state";
-import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
-import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { HighlightStyle, syntaxHighlighting, bracketMatching, indentOnInput, indentUnit } from "@codemirror/language";
+import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
 import { tags as t } from "@lezer/highlight";
 import "@fontsource/roboto-mono/latin-400.css";
 import "@fontsource/roboto-mono/latin-400-italic.css";
@@ -52,6 +53,9 @@ const theme = EditorView.theme({
     fontSize: "0.9rem",
     lineHeight: "1.75",
     padding: 0,
+    // Scroll-past-end: blank trailing space so the last line can sit mid-viewport, not pinned
+    // to the bottom edge (under the floating buttons) while typing.
+    paddingBottom: "50vh",
     caretColor: "var(--ink)",
   },
   ".cm-line": { padding: 0 },
@@ -174,7 +178,13 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
         extensions: [
           history(),
           EditorView.lineWrapping,
-          keymap.of([...defaultKeymap, ...historyKeymap]),
+          // Code-fence editing services: the nested language (js/vue/…) drives these, so
+          // Tab indents, Enter re-indents, brackets auto-close and match — inside a fence.
+          indentUnit.of("  "),
+          indentOnInput(),
+          bracketMatching(),
+          closeBrackets(),
+          keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
           markdown({ base: markdownLanguage, codeLanguages: languages }),
           syntaxHighlighting(highlight),
           theme,
@@ -528,6 +538,7 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
           kind={sandboxEdit.modal}
           initial={sandboxEdit.initial}
           siblings={sandboxEdit.siblings}
+          draftKey={`${editorId}:${sandboxEdit.modal}:${sandboxEdit.from}`}
           onSave={saveSandbox}
           onCancel={() => setSandboxEdit(null)}
         />
