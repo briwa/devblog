@@ -235,6 +235,11 @@ function devPublish() {
 export default defineConfig({
   integrations: [react(), adminBuild()],
   // ORDER MATTERS: strip HTML first, else remarkSandbox's raw-HTML figures get stripped too.
-  markdown: { processor: unified({ remarkPlugins: [remarkStripHtml, remarkSandbox] }) },
+  // css-variables theme: plain ```fences emit var(--shiki-*) too, matching the sandbox blocks + editor.
+  markdown: {
+    syntaxHighlight: 'shiki',
+    shikiConfig: { theme: 'css-variables' },
+    processor: unified({ remarkPlugins: [remarkStripHtml, remarkSandbox] }),
+  },
   vite: { plugins: [devPublish()] },
 });

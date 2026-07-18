@@ -2,6 +2,7 @@
 import Layout from './Layout.astro';
 import Icon from '../components/Icon.astro';
 import Search from '../components/Search.astro';
+import CodeThemeToggle from '../components/CodeThemeToggle.astro';
 import { SITE_NAME } from '../config.js';
 
 const { title, noIndex } = Astro.props;
@@ -26,6 +27,7 @@ const { title, noIndex } = Astro.props;
       <slot />
     </main>
   </div>
+  {import.meta.env.DEV && <CodeThemeToggle />}
   <script is:inline>
     document.querySelector('.theme-toggle')?.addEventListener('click', () => {
       const current =

@@ -1,0 +1,24 @@
+---
+// TEMPORARY dev control: compare code color schemes live. Flips data-code-theme on <html>;
+// both the CodeMirror sandbox editor and the published Shiki blocks read the same --shiki-* vars.
+import { CODE_THEMES, DEFAULT_CODE_THEME } from '../lib/codeThemes.js';
+---
+<div class="code-theme-toggle" title="Code color scheme (dev)">
+  <span>code</span>
+  <select aria-label="Code color scheme">
+    {CODE_THEMES.map((s) => <option value={s.id}>{s.label}</option>)}
+  </select>
+</div>
+<script is:inline define:vars={{ DEFAULT_CODE_THEME }}>
+  const root = document.documentElement;
+  const sel = document.querySelector('.code-theme-toggle select');
+  const cur = localStorage.getItem('codeTheme') || DEFAULT_CODE_THEME;
+  root.setAttribute('data-code-theme', cur);
+  if (sel) {
+    sel.value = cur;
+    sel.addEventListener('change', () => {
+      root.setAttribute('data-code-theme', sel.value);
+      localStorage.setItem('codeTheme', sel.value);
+    });
+  }
+</script>

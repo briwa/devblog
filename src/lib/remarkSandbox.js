@@ -1,13 +1,8 @@
-// Build-only (imports Shiki, so kept out of the editor's sandbox.js): we replace
-// each sandbox fence with raw HTML before rehype runs, so we highlight the source
-// here — rehypeShiki would otherwise consume the fence `meta` we need.
-
 import { createShikiHighlighter } from '@astrojs/internal-helpers/shiki';
 import { parseMeta, buildSrcdoc, buildVueSrcdoc, sandboxPrelude, sandboxExternals, sandboxVueComponents, safeUrl, escapeAttr, escapeHtml } from './sandbox.js';
 
-// Cached: creating a highlighter loads grammars/themes, so share one build-wide.
 let highlighterPromise;
-const getHighlighter = () => (highlighterPromise ??= createShikiHighlighter());
+const getHighlighter = () => (highlighterPromise ??= createShikiHighlighter({ theme: 'css-variables' }));
 
 // Falls back to a plain <pre> if Shiki fails, so a build never dies over a figure.
 async function highlightCode(code, lang = 'js') {

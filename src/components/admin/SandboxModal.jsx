@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { EditorView, keymap } from "@codemirror/view";
 import { EditorState, Compartment } from "@codemirror/state";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
-import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language";
+import { syntaxHighlighting } from "@codemirror/language";
 import { javascript } from "@codemirror/lang-javascript";
 import { vue } from "@codemirror/lang-vue";
 import Icon from "../Icon.jsx";
+import { codeHighlightStyle } from "../../lib/codeHighlight.js";
 import {
   SANDBOX_TYPES,
   buildSandboxFence,
@@ -55,14 +56,13 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
   // Bumped on every (re)build and reset — used as the iframe key so it always fully remounts.
   // Updating an iframe's srcdoc attribute in place doesn't reliably reload it, so we recreate it.
   const [frameKey, setFrameKey] = useState(0);
-  const [live, setLive] = useState(false); // auto-update the preview as you edit (off by default)
-  const [docTick, setDocTick] = useState(0); // bumped on each edit, but only while live is on
-  const liveRef = useRef(live);
-  liveRef.current = live;
+  const [dirty, setDirty] = useState(false); // unsaved edits — floats the save button until applied
 
   const hostRef = useRef(null);
   const cmRef = useRef(null);
   const frameRef = useRef(null);
+  const updateRef = useRef(null); // latest updatePreview, so the ⌘S handler (bound once) never goes stale
+  const metaInitRef = useRef(false); // skip the mount pass when flagging meta edits dirty
 
   const codeLang = isFigure ? (type === "vue" ? "vue" : "javascript") : (srcLang === "vue" ? "vue" : "javascript");
   const canPlay = isFigure && type !== "vue"; // js figures own the pausable rAF loop
@@ -79,7 +79,9 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
     setSrcdoc(buildPreview({ type, w: width, h: Number(h) || 0, bg: bg || themeBg, id: groupId }, body, siblings));
     setPreviewW(width || 640);
     setFrameKey((k) => k + 1); // force the iframe to remount with the new srcdoc
+    setDirty(false); // edits applied — hide the save button
   }
+  updateRef.current = updatePreview; // refreshed every render so ⌘S applies the current code + meta
 
   // One-time editor setup, then build the initial preview once.
   useEffect(() => {
@@ -91,16 +93,18 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
           EditorView.lineWrapping,
           keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
           langCompartment.of(langSupport(codeLang)),
-          syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+          syntaxHighlighting(codeHighlightStyle, { fallback: true }),
+          // Read the shared --astro-code-* palette so the editor matches the published code block.
           EditorView.theme({
-            "&": { height: "100%", color: "var(--ink)" },
-            ".cm-content": { caretColor: "var(--ink)" },
+            "&": { height: "100%", color: "var(--astro-code-foreground, var(--ink))", background: "var(--astro-code-background, var(--bg))" },
+            ".cm-content": { caretColor: "var(--astro-code-foreground, var(--ink))" },
             ".cm-scroller": { fontFamily: "'Roboto Mono', ui-monospace, 'SF Mono', monospace", fontSize: "0.85rem", lineHeight: "1.7" },
             "&.cm-focused": { outline: "none" },
+            ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": { background: "color-mix(in srgb, var(--astro-code-foreground, var(--ink)) 22%, transparent)" },
           }),
           EditorView.updateListener.of((u) => {
-            // Only trigger re-renders while live preview is on; otherwise typing is free.
-            if (u.docChanged && liveRef.current) setDocTick((t) => t + 1);
+            // Flag unsaved edits so the floating save button appears; typing itself stays cheap.
+            if (u.docChanged) setDirty(true);
           }),
         ],
       }),
@@ -117,12 +121,11 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
     if (cmRef.current) cmRef.current.dispatch({ effects: langCompartment.reconfigure(langSupport(codeLang)) });
   }, [codeLang]);
 
-  // Live mode: rebuild the preview shortly after edits or meta changes (debounced).
+  // Meta edits (size, bg, type, group) also need re-applying — flag them dirty too, but not on mount.
   useEffect(() => {
-    if (!isFigure || !live) return;
-    const id = setTimeout(updatePreview, 400);
-    return () => clearTimeout(id);
-  }, [live, docTick, type, w, h, bg, groupId]);
+    if (!metaInitRef.current) { metaInitRef.current = true; return; }
+    if (isFigure) setDirty(true);
+  }, [type, w, h, bg, groupId]);
 
   // Any fresh frame (rebuilt preview or explicit reset) starts paused.
   useEffect(() => { setPlaying(false); }, [frameKey]);
@@ -141,9 +144,16 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
   }, []);
 
   useEffect(() => {
-    const onKey = (e) => { if (e.key === "Escape") onCancel(); };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    const onKey = (e) => {
+      if (e.key === "Escape") { onCancel(); return; }
+      // ⌘/Ctrl+S applies the current edits to the preview (never the browser's save dialog).
+      if ((e.metaKey || e.ctrlKey) && (e.key === "s" || e.key === "S")) {
+        e.preventDefault();
+        updateRef.current?.();
+      }
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
   }, [onCancel]);
 
   function togglePlay() {
@@ -237,22 +247,30 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
         </div>
       </div>
       <div className={`sbx-body ${isFigure ? "" : "sbx-body-solo"}`}>
-        <div className="sbx-code" ref={hostRef} />
+        <div className="sbx-code-pane">
+          <div className="sbx-code" ref={hostRef} />
+          {isFigure && dirty && (
+            <button
+              className="sbx-save-fab"
+              onClick={updatePreview}
+              title="Apply edits to the preview (⌘S)"
+              aria-label="Apply edits to the preview"
+            >
+              <Icon name="save" size={16} />
+            </button>
+          )}
+        </div>
         {isFigure && (
           <div className="sbx-preview">
             <div className="sbx-controls" role="toolbar" aria-label="Preview controls">
               {canPlay && (
-                <button className="sbx-ctl" onClick={togglePlay} title={playing ? "Pause" : "Play"}>
-                  {playing ? "Pause" : "Play"}
+                <button className="sbx-ctl sbx-icon" onClick={togglePlay} title={playing ? "Pause" : "Play"} aria-label={playing ? "Pause" : "Play"}>
+                  <Icon name={playing ? "pause" : "play"} size={16} />
                 </button>
               )}
-              <button className="sbx-ctl" onClick={resetFrame} title="Restart the current preview">Reset</button>
-              <label className="sbx-live" title="Rebuild the preview automatically as you edit">
-                <input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} /> live
-              </label>
-              {!live && (
-                <button className="sbx-ctl primary" onClick={updatePreview} title="Rebuild the preview from the current code">Update</button>
-              )}
+              <button className="sbx-ctl sbx-icon" onClick={resetFrame} title="Restart the preview" aria-label="Restart the preview">
+                <Icon name="reset" size={16} />
+              </button>
             </div>
             <iframe
               key={frameKey}

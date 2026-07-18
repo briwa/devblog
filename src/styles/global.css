@@ -37,6 +37,101 @@
   }
 }
 
+/* ============================================================
+   Code color schemes — TEMPORARY dev toggle (CodeThemeToggle.astro).
+   ONE palette drives BOTH surfaces:
+     • published blocks — Shiki `css-variables` theme emits var(--astro-code-*)
+     • sandbox editor  — CodeMirror highlight style reads the same var(--astro-code-*)
+   Each scheme defines its light (--l-*) and dark (--d-*) values in one place;
+   the mapping at the bottom picks which set --astro-code-* resolves to per site theme.
+   To remove: delete this block, drop shikiConfig/css-variables, restore defaultHighlightStyle.
+   ============================================================ */
+:root,
+:root[data-code-theme='one'] {
+  --l-fg:#383a42; --l-bg:#fafafa; --l-comment:#a0a1a7; --l-kw:#a626a4; --l-str:#50a14f;
+  --l-const:#986801; --l-fn:#4078f2; --l-param:#383a42; --l-strexp:#50a14f; --l-punc:#383a42; --l-link:#4078f2;
+  --d-fg:#abb2bf; --d-bg:#282c34; --d-comment:#7f848e; --d-kw:#c678dd; --d-str:#98c379;
+  --d-const:#d19a66; --d-fn:#61afef; --d-param:#abb2bf; --d-strexp:#98c379; --d-punc:#abb2bf; --d-link:#61afef;
+}
+:root[data-code-theme='github'] {
+  --l-fg:#24292e; --l-bg:#ffffff; --l-comment:#6a737d; --l-kw:#d73a49; --l-str:#032f62;
+  --l-const:#005cc5; --l-fn:#6f42c1; --l-param:#24292e; --l-strexp:#032f62; --l-punc:#24292e; --l-link:#032f62;
+  --d-fg:#e1e4e8; --d-bg:#24292e; --d-comment:#6a737d; --d-kw:#f97583; --d-str:#9ecbff;
+  --d-const:#79b8ff; --d-fn:#b392f0; --d-param:#e1e4e8; --d-strexp:#9ecbff; --d-punc:#e1e4e8; --d-link:#9ecbff;
+}
+:root[data-code-theme='nord'] {
+  --l-fg:#2e3440; --l-bg:#eceff4; --l-comment:#7b88a1; --l-kw:#5e81ac; --l-str:#4f7942;
+  --l-const:#8a5a86; --l-fn:#2b7c99; --l-param:#2e3440; --l-strexp:#4f7942; --l-punc:#4c566a; --l-link:#5e81ac;
+  --d-fg:#d8dee9; --d-bg:#2e3440; --d-comment:#616e88; --d-kw:#81a1c1; --d-str:#a3be8c;
+  --d-const:#b48ead; --d-fn:#88c0d0; --d-param:#d8dee9; --d-strexp:#a3be8c; --d-punc:#eceff4; --d-link:#8fbcbb;
+}
+:root[data-code-theme='dracula'] {
+  --l-fg:#1f1f1f; --l-bg:#fffbeb; --l-comment:#6c664b; --l-kw:#a3144d; --l-str:#846e15;
+  --l-const:#644ac9; --l-fn:#14710a; --l-param:#a34d14; --l-strexp:#846e15; --l-punc:#1f1f1f; --l-link:#036a96;
+  --d-fg:#f8f8f2; --d-bg:#282a36; --d-comment:#6272a4; --d-kw:#ff79c6; --d-str:#f1fa8c;
+  --d-const:#bd93f9; --d-fn:#50fa7b; --d-param:#ffb86c; --d-strexp:#f1fa8c; --d-punc:#f8f8f2; --d-link:#8be9fd;
+}
+
+/* Light site theme → the active scheme's light set. */
+:root {
+  --astro-code-foreground: var(--l-fg);       --astro-code-background: var(--l-bg);
+  --astro-code-token-comment: var(--l-comment); --astro-code-token-keyword: var(--l-kw);
+  --astro-code-token-string: var(--l-str);      --astro-code-token-constant: var(--l-const);
+  --astro-code-token-function: var(--l-fn);     --astro-code-token-parameter: var(--l-param);
+  --astro-code-token-string-expression: var(--l-strexp);
+  --astro-code-token-punctuation: var(--l-punc); --astro-code-token-link: var(--l-link);
+}
+/* Dark site theme → the active scheme's dark set. */
+:root[data-theme='dark'] {
+  --astro-code-foreground: var(--d-fg);       --astro-code-background: var(--d-bg);
+  --astro-code-token-comment: var(--d-comment); --astro-code-token-keyword: var(--d-kw);
+  --astro-code-token-string: var(--d-str);      --astro-code-token-constant: var(--d-const);
+  --astro-code-token-function: var(--d-fn);     --astro-code-token-parameter: var(--d-param);
+  --astro-code-token-string-expression: var(--d-strexp);
+  --astro-code-token-punctuation: var(--d-punc); --astro-code-token-link: var(--d-link);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --astro-code-foreground: var(--d-fg);       --astro-code-background: var(--d-bg);
+    --astro-code-token-comment: var(--d-comment); --astro-code-token-keyword: var(--d-kw);
+    --astro-code-token-string: var(--d-str);      --astro-code-token-constant: var(--d-const);
+    --astro-code-token-function: var(--d-fn);     --astro-code-token-parameter: var(--d-param);
+    --astro-code-token-string-expression: var(--d-strexp);
+    --astro-code-token-punctuation: var(--d-punc); --astro-code-token-link: var(--d-link);
+  }
+}
+
+/* Dev toggle chrome (bottom-left, opposite the admin fab). */
+.code-theme-toggle {
+  position: fixed;
+  left: 1rem;
+  bottom: 1rem;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  opacity: 0.55;
+  transition: opacity 0.15s;
+}
+.code-theme-toggle:hover { opacity: 1; }
+.code-theme-toggle select {
+  font: inherit;
+  font-size: 0.72rem;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  padding: 0.15rem 0.3rem;
+}
+
 * { box-sizing: border-box; }
 
 html {
@@ -671,13 +766,41 @@ a.hashtag:hover { color: var(--accent); }
 .sbx-btn:hover { border-color: var(--ink); }
 .sbx-btn.save { color: var(--accent); border-color: var(--accent); }
 .sbx-body { flex: 1; display: flex; min-height: 0; }
+/* Wraps the editor host so the floating save button can anchor to the code pane. */
+.sbx-code-pane {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  border-right: 1px solid var(--rule);
+}
 .sbx-code {
   flex: 1;
   min-width: 0;
   overflow: auto;
-  border-right: 1px solid var(--rule);
 }
 .sbx-code .cm-editor { height: 100%; }
+
+/* Appears at the code pane's top-right once there are unsaved edits; ⌘S / click applies them. */
+.sbx-save-fab {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem;
+  color: var(--bg);
+  background: var(--accent);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ink) 30%, transparent);
+  opacity: 0.92;
+  transition: opacity 0.15s, transform 0.15s;
+}
+.sbx-save-fab:hover { opacity: 1; transform: translateY(-1px); }
 .sbx-preview {
   flex: 1;
   min-width: 0;
@@ -702,7 +825,8 @@ a.hashtag:hover { color: var(--accent); }
 }
 .sbx-ctl:hover { border-color: var(--ink); }
 .sbx-ctl.primary { color: var(--accent); border-color: var(--accent); }
-.sbx-live { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; color: var(--muted); cursor: pointer; }
+/* Icon-only control buttons (play/pause, reset): square padding, centered glyph. */
+.sbx-ctl.sbx-icon { display: inline-flex; align-items: center; justify-content: center; padding: 0.35rem; }
 .sbx-frame {
   width: 100%;
   border: 1px solid var(--rule);
@@ -710,10 +834,10 @@ a.hashtag:hover { color: var(--accent); }
   background: var(--bg);
 }
 /* Source/vue-lib editing has no preview: the code pane takes the full width. */
-.sbx-body-solo .sbx-code { border-right: none; }
+.sbx-body-solo .sbx-code-pane { border-right: none; }
 @media (max-width: 56rem) {
   .sbx-body { flex-direction: column; }
-  .sbx-code { border-right: none; border-bottom: 1px solid var(--rule); }
+  .sbx-code-pane { border-right: none; border-bottom: 1px solid var(--rule); }
 }
 
 /* Small centered dialog for external-lib URLs (SandboxExternalModal). */

@@ -16,6 +16,9 @@ const { title, noIndex } = Astro.props;
       // Apply the saved theme before paint; no saved value = follow the device.
       const saved = localStorage.getItem('theme');
       if (saved) document.documentElement.setAttribute('data-theme', saved);
+      // Dev-only code color scheme (falls back to the CSS default when unset).
+      const savedCode = localStorage.getItem('codeTheme');
+      if (savedCode) document.documentElement.setAttribute('data-code-theme', savedCode);
     </script>
     <slot name="head" />
   </head>
