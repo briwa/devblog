@@ -184,7 +184,8 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
 
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === "Escape") { finishDraft(); onCancel(); return; }
+      // ESC while editing code is a coding gesture, not "close the modal" — let CodeMirror keep it.
+      if (e.key === "Escape") { if (cmRef.current?.hasFocus) return; finishDraft(); onCancel(); return; }
       // ⌘/Ctrl+S applies the current edits to the preview (never the browser's save dialog).
       if ((e.metaKey || e.ctrlKey) && (e.key === "s" || e.key === "S")) {
         e.preventDefault();
