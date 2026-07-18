@@ -811,7 +811,7 @@ a.hashtag:hover { color: var(--accent); }
   align-items: flex-start;
   background: color-mix(in srgb, var(--ink) 2%, transparent);
 }
-.sbx-preview { flex-direction: column; align-items: stretch; justify-content: flex-start; }
+.sbx-preview { flex-direction: column; align-items: center; justify-content: flex-start; }
 .sbx-controls { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
 .sbx-ctl {
   font: inherit;

@@ -10,6 +10,13 @@ const PRESETS = new Set(['canvas', 'svg', 'root']);
 const DEFAULT_W = 640;
 const DEFAULT_H = 360;
 
+// Background for a figure with no explicit `bg`: follow the reader's theme. These mirror global.css's
+// --bg so the media-query default is right until the host posts the exact colour (see themeBgListener).
+const FIG_BG_LIGHT = '#fbfbf9';
+const FIG_BG_DARK = '#17171a';
+const themeBgCss = `:root{--sbx-bg:${FIG_BG_LIGHT}}@media(prefers-color-scheme:dark){:root{--sbx-bg:${FIG_BG_DARK}}}body{background:var(--sbx-bg)}`;
+const themeBgListener = `addEventListener('message',function(e){if(e.data&&e.data.__sbxBg)document.documentElement.style.setProperty('--sbx-bg',e.data.__sbxBg)});`;
+
 // The figure types offered in the sandbox editor: js presets plus vue (its own lang).
 export const SANDBOX_TYPES = ['canvas', 'svg', 'root', 'vue'];
 export { DEFAULT_W, DEFAULT_H };
@@ -187,7 +194,7 @@ export function buildVueSrcdoc({ w, h, bg }, code, { externals = [], components 
     .filter((u) => !isRawGistUrl(u))
     .map((u) => `<script src="${u}"></script>`)
     .join('');
-  const bgCss = bg ? `body{background:${bg}}` : '';
+  const bgCss = bg ? `body{background:${bg}}` : themeBgCss; // no explicit bg → follow the reader's theme
   const rootCss = `#root{position:relative;width:${w}px;height:${h}px;max-width:100%}`;
   const css = `html,body{margin:0}${bgCss}${rootCss}canvas,svg{display:block;max-width:100%;height:auto}.err{color:#c0392b;white-space:pre-wrap;font:12px/1.5 ui-monospace,monospace;padding:.75rem}`;
 
@@ -205,6 +212,7 @@ export function buildVueSrcdoc({ w, h, bg }, code, { externals = [], components 
     `const root=document.querySelector('#root');` +
     `const report=()=>parent.postMessage({__sandboxHeight:document.documentElement.scrollHeight},'*');` +
     `new ResizeObserver(report).observe(document.documentElement);` +
+    (bg ? '' : themeBgListener) +
     `const __files={${files}};` +
     `const opts={moduleCache:{vue:Vue},getFile(u){const f=__files[u];if(f==null)throw new Error('file not found: '+u);return Promise.resolve(f)},addStyle(t){const s=document.createElement('style');s.textContent=t;document.head.appendChild(s)}};` +
     `const {loadModule}=window['vue3-sfc-loader'];` +
@@ -251,8 +259,10 @@ export function buildSrcdoc({ preset, w, h, bg, auto, hover, control }, code, pr
     ? `#__play{position:absolute;inset:0;margin:auto;width:64px;height:64px;border:0;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;background:rgba(20,20,20,.55);transition:background .15s,transform .15s}#__play:hover{background:rgba(20,20,20,.8);transform:scale(1.06)}#__play.on-dark{color:#111;background:rgba(245,245,245,.6)}#__play.on-dark:hover{background:rgba(245,245,245,.85)}`
     : '';
 
-  // Optional figure background, painted on the body so it sits behind the surface (else transparent → theme bg).
-  const bgCss = bg ? `body{background:${bg}}` : '';
+  // Figure background: explicit `bg` wins; otherwise follow the reader's theme (see themeBgCss).
+  // A sandboxed iframe renders opaque, so leaving it unpainted shows white — covers included.
+  const bgCss = bg ? `body{background:${bg}}` : themeBgCss;
+  const themeSync = bg ? '' : themeBgListener;
 
   // Size #root to WxH so a mounted library has real dimensions; relative anchors its children, max-width avoids overflow.
   const rootCss = isRoot
@@ -290,7 +300,12 @@ export function buildSrcdoc({ preset, w, h, bg, auto, hover, control }, code, pr
     loopDef +
     `const report=()=>parent.postMessage({__sandboxHeight:document.documentElement.scrollHeight},'*');` +
     `new ResizeObserver(report).observe(document.documentElement);` +
-    `const run=()=>{try{\n${prelude}\n${code}\n}catch(e){document.body.innerHTML='<pre class=err>'+(e&&e.stack||e)+'</pre>'}report()};` +
+    themeSync +
+    // Surface runtime throws too: the loop runs in later rAF frames, outside run()'s try, so an in-loop error would otherwise only hit the console.
+    `const showErr=(m)=>{document.body.innerHTML='<pre class=err>'+m+'</pre>';report()};` +
+    `addEventListener('error',e=>showErr((e.error&&e.error.stack)||e.message));` +
+    `addEventListener('unhandledrejection',e=>showErr((e.reason&&e.reason.stack)||e.reason));` +
+    `const run=()=>{try{\n${prelude}\n${code}\n}catch(e){showErr(e&&e.stack||e);return}report()};` +
     loadExt +
     tail;
 

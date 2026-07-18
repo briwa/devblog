@@ -95,12 +95,15 @@ const tags = parseTags(post.data.tags);
   {/* Interactive figure sandboxes: size each iframe to its postMessaged height,
       and toggle a figure between its live preview and its source. */}
   <script>
+    import { pushFigureTheme, watchFigureTheme } from '../../../lib/sandboxTheme.js';
+    const figures = () => document.querySelectorAll('.sandbox-frame');
     window.addEventListener('message', (e) => {
       const h = e.data && e.data.__sandboxHeight;
       if (typeof h !== 'number') return;
       // Match by contentWindow — the frames are null-origin, so there's no origin to trust.
-      for (const f of document.querySelectorAll('.sandbox-frame')) {
+      for (const f of figures()) {
         if (f.contentWindow === e.source) {
+          pushFigureTheme(f.contentWindow); // a height report means the frame is ready for the theme
           // Ignore a 0 height: a frame hidden in code mode reports 0, and applying
           // it would collapse the iframe and lose the running figure on toggle-back.
           if (h > 0) {
@@ -112,6 +115,7 @@ const tags = parseTags(post.data.tags);
         }
       }
     });
+    watchFigureTheme(figures);
     document.addEventListener('click', (e) => {
       const btn = e.target.closest('.sandbox-toggle');
       if (!btn) return;

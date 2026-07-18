@@ -1,12 +1,22 @@
+import { useEffect, useRef } from "react";
 import { fmtDay } from "../lib/dates.js";
 import Hashtags from "./Hashtags.jsx";
+import { pushFigureTheme, watchFigureTheme } from "../lib/sandboxTheme.js";
 
 export function Cover({ cover }) {
   if (!cover) return null;
   if (cover.type === "image")
     return <img className="jr-cover-media" src={cover.src} alt={cover.alt || ""} loading="lazy" />;
+  return <CoverFrame cover={cover} />;
+}
+
+// A figure cover is a null-origin iframe that can't read --bg, so hand it the theme on load and on every flip.
+function CoverFrame({ cover }) {
+  const ref = useRef(null);
+  useEffect(() => watchFigureTheme(() => (ref.current ? [ref.current] : [])), []);
   return (
     <iframe
+      ref={ref}
       className="jr-cover-media jr-cover-frame"
       sandbox="allow-scripts"
       srcDoc={cover.srcdoc}
@@ -14,6 +24,7 @@ export function Cover({ cover }) {
       tabIndex={-1}
       scrolling="no"
       style={{ "--fig-ar": `${cover.w} / ${cover.h}` }}
+      onLoad={() => pushFigureTheme(ref.current?.contentWindow)}
     />
   );
 }

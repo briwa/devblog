@@ -9,6 +9,7 @@
 import { Decoration, EditorView, WidgetType, ViewPlugin, keymap } from "@codemirror/view";
 import { StateField, StateEffect, Prec } from "@codemirror/state";
 import { buildSrcdoc, buildVueSrcdoc, findSandboxBlocks, sandboxPrelude, sandboxExternals, sandboxVueComponents } from "./sandbox.js";
+import { pushFigureTheme, watchFigureTheme } from "./sandboxTheme.js";
 
 const togglePreview = StateEffect.define();
 
@@ -199,20 +200,25 @@ export function sandboxPreview({ onEdit, onCreate } = {}) {
     class {
       constructor(view) {
         this.view = view;
+        const frames = () => view.dom.querySelectorAll(".cm-sandbox iframe");
         this.onMessage = (e) => {
           const h = e.data && e.data.__sandboxHeight;
-          if (typeof h !== "number" || h <= 0) return; // ignore a hidden frame's 0
-          for (const f of view.dom.querySelectorAll(".cm-sandbox iframe")) {
+          if (typeof h !== "number") return;
+          for (const f of frames()) {
             if (f.contentWindow === e.source) {
-              f.style.height = h + "px";
-              view.requestMeasure();
+              pushFigureTheme(f.contentWindow); // frame reported in → hand it the current theme
+              if (h > 0) { // ignore a hidden frame's 0
+                f.style.height = h + "px";
+                view.requestMeasure();
+              }
               break;
             }
           }
         };
         window.addEventListener("message", this.onMessage);
+        this.stopTheme = watchFigureTheme(frames);
       }
-      destroy() { window.removeEventListener("message", this.onMessage); }
+      destroy() { window.removeEventListener("message", this.onMessage); this.stopTheme(); }
     }
   );
 
