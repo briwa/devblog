@@ -274,12 +274,14 @@ export function buildSrcdoc({ preset, w, h, bg, auto, hover, control }, code, pr
   const loopDef = hover
     ? `let __fn=null,__raf=null;const loop=(fn)=>{__fn=fn;fn(0)};`
     : control
-      ? `let __fn=null,__raf=null;const __tick=(ts)=>{__fn(ts);__raf=requestAnimationFrame(__tick)};const loop=(fn)=>{__fn=fn;fn(0);return ()=>{if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}}};`
+      // ts is elapsed-since-play, not the raw rAF stamp — else pressing play seconds after load hands the figure a huge t.
+      ? `let __fn=null,__raf=null,__el=0,__t0=null,__now=0;const __tick=(ts)=>{if(__t0==null)__t0=ts;__now=__el+(ts-__t0);__fn(__now);__raf=requestAnimationFrame(__tick)};const loop=(fn)=>{__fn=fn;fn(0);return ()=>{if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}}};`
       : `const loop=(fn)=>{let id;const t=(ts)=>{fn(ts);id=requestAnimationFrame(t)};id=requestAnimationFrame(t);return ()=>cancelAnimationFrame(id)};`;
   const tail = deferred
     ? `const __play=document.getElementById('__play'),__c=getComputedStyle(document.body).backgroundColor.match(/[\\d.]+/g);if(__c&&(__c.length<4||+__c[3]>0)&&(0.299*__c[0]+0.587*__c[1]+0.114*__c[2])<128)__play.classList.add('on-dark');__play.addEventListener('click',()=>{__play.remove();start()});report();`
     : control
-      ? `start();addEventListener('message',function(e){if(!e.data)return;if(e.data.__figpause){if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}}else if(e.data.__figplay){if(__raf==null&&__fn){__raf=requestAnimationFrame(__tick)}}});`
+      // pause banks elapsed; play clears __t0 so the next tick rebases and the timeline resumes seamlessly.
+      ? `start();addEventListener('message',function(e){if(!e.data)return;if(e.data.__figpause){if(__raf!=null){cancelAnimationFrame(__raf);__raf=null;__el=__now}}else if(e.data.__figplay){if(__raf==null&&__fn){__t0=null;__raf=requestAnimationFrame(__tick)}}});`
       : hover
         ? `start();addEventListener('message',function(e){if(!__fn)return;if(e.data&&e.data.__figplay){if(__raf==null){var _t=function(ts){__fn(ts);__raf=requestAnimationFrame(_t)};__raf=requestAnimationFrame(_t)}}else if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}});`
         : `start();`;
