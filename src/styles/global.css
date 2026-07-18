@@ -554,7 +554,12 @@ a.hashtag:hover { color: var(--accent); }
 .sandbox { width: 90%; margin: 1.75rem auto; position: relative; }
 .sandbox-frame {
   width: 100%;
-  border: 1px solid var(--rule);
+  /* Inset outline, not border: the frame's height is set to the iframe doc's exact scrollHeight,
+     so a border-box border would shrink the content area and force a scrollbar. border:0 also
+     kills the UA default iframe border (2px inset), which does the same. */
+  border: 0;
+  outline: 1px solid var(--rule);
+  outline-offset: -1px;
   border-radius: 6px;
   background: var(--bg);
   display: block;
@@ -623,7 +628,7 @@ a.hashtag:hover { color: var(--accent); }
 .sandbox-external-bad { color: var(--muted); word-break: break-all; }
 
 /* Inline sandbox preview inside the CodeMirror source editor (sandboxPreview.js). */
-.cm-sandbox { margin: 0.5rem 0; }
+.cm-sandbox { margin: 0.5rem auto; }
 .cm-sandbox-bar {
   display: flex;
   align-items: center;
@@ -829,7 +834,11 @@ a.hashtag:hover { color: var(--accent); }
 .sbx-ctl.sbx-icon { display: inline-flex; align-items: center; justify-content: center; padding: 0.35rem; }
 .sbx-frame {
   width: 100%;
-  border: 1px solid var(--rule);
+  /* Inset outline + border:0 (kills the UA default iframe border): the frame is sized to the
+     iframe doc's scrollHeight, so any border shrinks the content area and forces a scrollbar. */
+  border: 0;
+  outline: 1px solid var(--rule);
+  outline-offset: -1px;
   border-radius: 6px;
   background: var(--bg);
 }
