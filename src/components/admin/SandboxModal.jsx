@@ -116,7 +116,7 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
         extensions: [
           lineNumbers(),
           codeFolding(),
-          foldGutter({ openText: "▾", closedText: "▸" }),
+          foldGutter({ openText: "⌄", closedText: "›" }),
           // Shared bracket/indent/history UX; foldKeymap merges into the shared keymap.
           ...codeServices(foldKeymap),
           langCompartment.of(langSupport(codeLang)),
@@ -133,9 +133,12 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
             ".cm-gutters": { background: "transparent", border: "none", color: "color-mix(in srgb, var(--astro-code-foreground, var(--ink)) 40%, transparent)" },
             ".cm-lineNumbers .cm-gutterElement": { padding: "0 6px 0 8px", minWidth: "2ch" },
             // Fold chevrons stay hidden so they never clutter the gutter; they fade in on gutter hover.
-            ".cm-foldGutter .cm-gutterElement": { padding: "0 4px", cursor: "pointer", opacity: 0, transition: "opacity 0.12s" },
+            ".cm-foldGutter .cm-gutterElement": { padding: "0 4px", cursor: "pointer", opacity: 0, transition: "opacity 0.12s", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.05rem", lineHeight: "1.7" },
             ".cm-gutters:hover .cm-foldGutter .cm-gutterElement": { opacity: 0.55 },
             ".cm-foldGutter .cm-gutterElement:hover": { opacity: 1 },
+            // The expanded "⌄" glyph sits low; nudge it up so it reads centered on the line.
+            ".cm-foldGutter [title='Fold line']": { transform: "translateY(-4px)" },
+            ".cm-foldGutter [title='Unfold line']": { transform: "translateY(-2px)" },
             // Folded-range marker ("⋯") shown inline where code is collapsed.
             ".cm-foldPlaceholder": { background: "color-mix(in srgb, var(--astro-code-foreground, var(--ink)) 12%, transparent)", border: "none", color: "var(--astro-code-token-comment, var(--ink))", borderRadius: "4px", padding: "0 6px", margin: "0 2px" },
           }),
