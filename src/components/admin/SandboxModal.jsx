@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { EditorView, keymap } from "@codemirror/view";
+import { EditorView, lineNumbers } from "@codemirror/view";
 import { EditorState, Compartment } from "@codemirror/state";
-import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
-import { syntaxHighlighting } from "@codemirror/language";
+import { syntaxHighlighting, codeFolding, foldGutter, foldKeymap } from "@codemirror/language";
 import { javascript } from "@codemirror/lang-javascript";
 import { vue } from "@codemirror/lang-vue";
 import Icon from "../Icon.jsx";
+import { codeServices } from "../../lib/editorSetup.js";
 import { codeHighlightStyle } from "../../lib/codeHighlight.js";
 import { loadSandboxDraft, saveSandboxDraft, clearSandboxDraft } from "../../lib/sandboxDraft.js";
 import {
@@ -114,9 +114,11 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
       state: EditorState.create({
         doc: seed.code || "",
         extensions: [
-          history(),
-          EditorView.lineWrapping,
-          keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+          lineNumbers(),
+          codeFolding(),
+          foldGutter({ openText: "▾", closedText: "▸" }),
+          // Shared bracket/indent/history UX; foldKeymap merges into the shared keymap.
+          ...codeServices(foldKeymap),
           langCompartment.of(langSupport(codeLang)),
           syntaxHighlighting(codeHighlightStyle, { fallback: true }),
           // Read the shared --astro-code-* palette so the editor matches the published code block.
@@ -127,6 +129,15 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
             ".cm-scroller": { fontFamily: "'Roboto Mono', ui-monospace, 'SF Mono', monospace", fontSize: "0.85rem", lineHeight: "1.7" },
             "&.cm-focused": { outline: "none" },
             ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": { background: "color-mix(in srgb, var(--astro-code-foreground, var(--ink)) 22%, transparent)" },
+            // Gutters (line numbers + fold) share the editor palette, kept dim so code stays the focus.
+            ".cm-gutters": { background: "transparent", border: "none", color: "color-mix(in srgb, var(--astro-code-foreground, var(--ink)) 40%, transparent)" },
+            ".cm-lineNumbers .cm-gutterElement": { padding: "0 6px 0 8px", minWidth: "2ch" },
+            // Fold chevrons stay hidden so they never clutter the gutter; they fade in on gutter hover.
+            ".cm-foldGutter .cm-gutterElement": { padding: "0 4px", cursor: "pointer", opacity: 0, transition: "opacity 0.12s" },
+            ".cm-gutters:hover .cm-foldGutter .cm-gutterElement": { opacity: 0.55 },
+            ".cm-foldGutter .cm-gutterElement:hover": { opacity: 1 },
+            // Folded-range marker ("⋯") shown inline where code is collapsed.
+            ".cm-foldPlaceholder": { background: "color-mix(in srgb, var(--astro-code-foreground, var(--ink)) 12%, transparent)", border: "none", color: "var(--astro-code-token-comment, var(--ink))", borderRadius: "4px", padding: "0 6px", margin: "0 2px" },
           }),
           EditorView.updateListener.of((u) => {
             // Flag unsaved edits so the floating save button appears; typing itself stays cheap.

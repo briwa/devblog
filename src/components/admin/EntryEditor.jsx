@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { EditorView, keymap } from "@codemirror/view";
+import { EditorView } from "@codemirror/view";
 import { EditorState } from "@codemirror/state";
-import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages } from "@codemirror/language-data";
-import { HighlightStyle, syntaxHighlighting, bracketMatching, indentOnInput, indentUnit } from "@codemirror/language";
-import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
+import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags as t } from "@lezer/highlight";
+import { codeServices } from "../../lib/editorSetup.js";
 import "@fontsource/roboto-mono/latin-400.css";
 import "@fontsource/roboto-mono/latin-400-italic.css";
 import "@fontsource/roboto-mono/latin-700.css";
@@ -176,15 +175,9 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
       state: EditorState.create({
         doc: restored?.body ?? md,
         extensions: [
-          history(),
-          EditorView.lineWrapping,
-          // Code-fence editing services: the nested language (js/vue/…) drives these, so
-          // Tab indents, Enter re-indents, brackets auto-close and match — inside a fence.
-          indentUnit.of("  "),
-          indentOnInput(),
-          bracketMatching(),
-          closeBrackets(),
-          keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
+          // Shared code-editing services: Tab indents, Enter re-indents, brackets auto-close and
+          // match — the nested fence language (js/vue/…) drives them. Same bundle as the code-fence editor.
+          ...codeServices(),
           markdown({ base: markdownLanguage, codeLanguages: languages }),
           syntaxHighlighting(highlight),
           theme,

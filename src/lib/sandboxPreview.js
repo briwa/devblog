@@ -8,6 +8,7 @@
 
 import { Decoration, EditorView, WidgetType, ViewPlugin, keymap } from "@codemirror/view";
 import { StateField, StateEffect, Prec } from "@codemirror/state";
+import { autocompletion, completionStatus } from "@codemirror/autocomplete";
 import { buildSrcdoc, buildVueSrcdoc, findSandboxBlocks, sandboxPrelude, sandboxExternals, sandboxVueComponents } from "./sandbox.js";
 import { pushFigureTheme, watchFigureTheme } from "./sandboxTheme.js";
 
@@ -227,6 +228,8 @@ export function sandboxPreview({ onEdit, onCreate } = {}) {
   const slashCommand = Prec.high(keymap.of([{
     key: "Enter",
     run(view) {
+      // When the completion popup is open, let it own Enter so the highlighted option wins.
+      if (completionStatus(view.state) === "active") return false;
       const line = view.state.doc.lineAt(view.state.selection.main.head);
       const kind = COMMANDS[line.text.trim()];
       if (!kind) return false;
@@ -236,6 +239,35 @@ export function sandboxPreview({ onEdit, onCreate } = {}) {
     },
   }]));
 
+  // Typing "/" at the start of a line offers the sandbox commands; picking one opens its modal.
+  const SLASH_OPTIONS = [
+    { label: "/sandbox", kind: "figure", detail: "interactive figure" },
+    { label: "/sandbox-lib", kind: "external", detail: "external library" },
+    { label: "/sandbox-source", kind: "source", detail: "shared source" },
+  ];
+  const slashComplete = autocompletion({
+    override: [(ctx) => {
+      const line = ctx.state.doc.lineAt(ctx.pos);
+      const head = line.text.slice(0, ctx.pos - line.from);
+      // Only a line that is (so far) just a slash token — never mid-prose or a "//" comment.
+      if (!/^\/[\w-]*$/.test(head)) return null;
+      return {
+        from: line.from,
+        to: ctx.pos,
+        options: SLASH_OPTIONS.map((o) => ({
+          label: o.label,
+          detail: o.detail,
+          type: "keyword",
+          // Clear the typed command and open the modal instead of inserting text.
+          apply: (view) => {
+            view.dispatch({ changes: { from: line.from, to: line.to, insert: "" } });
+            onCreate?.(o.kind, line.from);
+          },
+        })),
+      };
+    }],
+  });
+
   // previewField first: decorationField reads it during (re)builds.
-  return [previewField, decorationField, resizePlugin, slashCommand];
+  return [previewField, decorationField, resizePlugin, slashComplete, slashCommand];
 }
