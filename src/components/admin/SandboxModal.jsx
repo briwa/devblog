@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { EditorView, lineNumbers } from "@codemirror/view";
 import { EditorState, Compartment } from "@codemirror/state";
-import { syntaxHighlighting, codeFolding, foldGutter, foldKeymap } from "@codemirror/language";
+import { syntaxHighlighting, codeFolding, foldGutter, foldKeymap, bracketMatching } from "@codemirror/language";
 import { javascript } from "@codemirror/lang-javascript";
 import { vue } from "@codemirror/lang-vue";
 import Icon from "../Icon.jsx";
@@ -117,16 +117,19 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
           lineNumbers(),
           codeFolding(),
           foldGutter({ openText: "⌄", closedText: "›" }),
-          // Shared bracket/indent/history UX; foldKeymap merges into the shared keymap.
+          // Shared indent/history UX; foldKeymap merges into the shared keymap.
           ...codeServices(foldKeymap),
+          // Bracket-match highlight lives only on the code fence, not the Markdown editor.
+          bracketMatching(),
           langCompartment.of(langSupport(codeLang)),
           syntaxHighlighting(codeHighlightStyle, { fallback: true }),
           // Read the shared --astro-code-* palette so the editor matches the published code block.
           EditorView.theme({
             "&": { height: "100%", color: "var(--astro-code-foreground, var(--ink))", background: "var(--astro-code-background, var(--bg))" },
-            // Scroll-past-end: blank trailing space so the last line can rise off the bottom edge while typing.
-            ".cm-content": { caretColor: "var(--astro-code-foreground, var(--ink))", paddingBottom: "40vh" },
-            ".cm-scroller": { fontFamily: "'Roboto Mono', ui-monospace, 'SF Mono', monospace", fontSize: "0.85rem", lineHeight: "1.7" },
+            ".cm-content": { caretColor: "var(--astro-code-foreground, var(--ink))" },
+            // Scroll-past-end lives on the scroller, not the content, so the editable text box ends at
+            // the last line — the trailing space is blank padding you can scroll into, not line area.
+            ".cm-scroller": { fontFamily: "'Roboto Mono', ui-monospace, 'SF Mono', monospace", fontSize: "0.85rem", lineHeight: "1.7", paddingBottom: "40vh" },
             "&.cm-focused": { outline: "none" },
             ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": { background: "color-mix(in srgb, var(--astro-code-foreground, var(--ink)) 22%, transparent)" },
             // Gutters (line numbers + fold) share the editor palette, kept dim so code stays the focus.

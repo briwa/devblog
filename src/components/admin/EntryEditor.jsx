@@ -52,9 +52,6 @@ const theme = EditorView.theme({
     fontSize: "0.9rem",
     lineHeight: "1.75",
     padding: 0,
-    // Scroll-past-end: blank trailing space so the last line can sit mid-viewport, not pinned
-    // to the bottom edge (under the floating buttons) while typing.
-    paddingBottom: "50vh",
     caretColor: "var(--ink)",
   },
   ".cm-line": { padding: 0 },
@@ -430,6 +427,7 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
   };
 
   return (
+    <>
     <div className="entry">
       <div className="entry-bar">
         <input
@@ -561,5 +559,8 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
         )}
       </div>
     </div>
+    {/* Scroll-past-end room sits outside .entry so the side rails end at the content, not here. */}
+    <div className="editor-scroll-space" aria-hidden="true" style={{ height: "50vh" }} />
+    </>
   );
 }
