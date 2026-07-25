@@ -774,11 +774,29 @@ a.hashtag:hover { color: var(--accent); }
 /* Wraps the editor host so the floating save button can anchor to the code pane. */
 .sbx-code-pane {
   position: relative;
-  flex: 1;
+  flex: var(--sbx-code-grow, 1) 1 0;
   min-width: 0;
   display: flex;
-  border-right: 1px solid var(--rule);
 }
+/* Draggable split between editor and preview: a wide hit area with a centered hairline. */
+.sbx-divider {
+  flex: 0 0 7px;
+  position: relative;
+  cursor: col-resize;
+  touch-action: none;
+}
+.sbx-divider::before {
+  content: "";
+  position: absolute;
+  inset: 0 3px;
+  background: var(--rule);
+  transition: background 0.12s;
+}
+.sbx-divider:hover::before { background: var(--ink); }
+.sbx-dragging { cursor: col-resize; user-select: none; }
+.sbx-dragging .sbx-divider::before { background: var(--accent); }
+/* Let the pointer stream reach the divider handler, not the iframe, mid-drag. */
+.sbx-dragging iframe { pointer-events: none; }
 .sbx-code {
   flex: 1;
   min-width: 0;
@@ -807,7 +825,7 @@ a.hashtag:hover { color: var(--accent); }
 }
 .sbx-save-fab:hover { opacity: 1; transform: translateY(-1px); }
 .sbx-preview {
-  flex: 1;
+  flex: var(--sbx-prev-grow, 1) 1 0;
   min-width: 0;
   overflow: auto;
   padding: 1rem;
@@ -842,11 +860,12 @@ a.hashtag:hover { color: var(--accent); }
   border-radius: 6px;
   background: var(--bg);
 }
-/* Source/vue-lib editing has no preview: the code pane takes the full width. */
-.sbx-body-solo .sbx-code-pane { border-right: none; }
 @media (max-width: 56rem) {
   .sbx-body { flex-direction: column; }
-  .sbx-code-pane { border-right: none; border-bottom: 1px solid var(--rule); }
+  /* Stack vertically: drop the horizontal split ratio and hide the (vertical) divider. */
+  .sbx-code-pane, .sbx-preview { flex: 1 1 0; }
+  .sbx-code-pane { border-bottom: 1px solid var(--rule); }
+  .sbx-divider { display: none; }
 }
 
 /* Small centered dialog for external-lib URLs (SandboxExternalModal). */

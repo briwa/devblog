@@ -227,6 +227,7 @@ export function buildVueSrcdoc({ w, h, bg }, code, { externals = [], components 
 
 // Build one figure's inner document. Returns the RAW string (callers escape it) — keep attribute-agnostic, or it double-encodes.
 // `control` (editor preview only): auto-run but keep the rAF loop pausable via {__figplay}/{__figpause} messages.
+// canvas/root figures also get a `reset()` global (see resetDef) that reloads the srcdoc to rebuild from scratch.
 export function buildSrcdoc({ preset, w, h, bg, auto, hover, control }, code, prelude = '', externals = []) {
   const isCanvas = preset === 'canvas';
   // The emitted boilerplate is TERSE on purpose — it's inlined into every srcdoc, so its comments/indentation would ship verbatim.
@@ -295,12 +296,16 @@ export function buildSrcdoc({ preset, w, h, bg, auto, hover, control }, code, pr
       : hover
         ? `start();addEventListener('message',function(e){if(!__fn)return;if(e.data&&e.data.__figplay){if(__raf==null){var _t=function(ts){__fn(ts);__raf=requestAnimationFrame(_t)};__raf=requestAnimationFrame(_t)}}else if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}});`
         : `start();`;
+  // reset(), exposed to author code alongside ctx/width/height/loop: reloads the srcdoc to rebuild the
+  // figure from scratch — a page figure lands back on its play button, the editor preview on a fresh frame 0.
+  const resetDef = (isCanvas || isRoot) && !hover ? `const reset=()=>location.reload();` : '';
   const script =
     setup +
     loopDef +
     `const report=()=>parent.postMessage({__sandboxHeight:document.documentElement.scrollHeight},'*');` +
     `new ResizeObserver(report).observe(document.documentElement);` +
     themeSync +
+    resetDef +
     // Surface runtime throws too: the loop runs in later rAF frames, outside run()'s try, so an in-loop error would otherwise only hit the console.
     `const showErr=(m)=>{document.body.innerHTML='<pre class=err>'+m+'</pre>';report()};` +
     `addEventListener('error',e=>showErr((e.error&&e.error.stack)||e.message));` +

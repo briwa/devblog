@@ -8,6 +8,7 @@ import Icon from "../Icon.jsx";
 import { codeServices } from "../../lib/editorSetup.js";
 import { codeHighlightStyle } from "../../lib/codeHighlight.js";
 import { loadSandboxDraft, saveSandboxDraft, clearSandboxDraft } from "../../lib/sandboxDraft.js";
+import { getCodeFenceSetting, setCodeFenceSetting } from "../../lib/codeFenceSettings.js";
 import {
   SANDBOX_TYPES,
   buildSandboxFence,
@@ -62,7 +63,11 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
   // Updating an iframe's srcdoc attribute in place doesn't reliably reload it, so we recreate it.
   const [frameKey, setFrameKey] = useState(0);
   const [dirty, setDirty] = useState(false); // unsaved edits — floats the save button until applied
+  // Editor/preview split, as the code pane's share of the width (0..1). Remembered across sessions.
+  const [split, setSplit] = useState(() => getCodeFenceSetting("splitRatio", 0.5));
+  const [dragging, setDragging] = useState(false); // suppresses iframe pointer events while resizing
 
+  const bodyRef = useRef(null);
   const hostRef = useRef(null);
   const cmRef = useRef(null);
   const frameRef = useRef(null);
@@ -219,7 +224,30 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
     win.postMessage(playing ? { __figpause: true } : { __figplay: true }, "*");
     setPlaying(!playing);
   }
+  // Remount the iframe to rebuild the figure from scratch — the same "initial state" the in-frame reset()
+  // global lands on (see buildSrcdoc), just driven from the toolbar instead of author code.
   function resetFrame() { setFrameKey((k) => k + 1); }
+
+  // Drag the divider to resize editor vs preview; clamp so neither pane collapses, and persist on release.
+  function startResize(e) {
+    e.preventDefault();
+    setDragging(true);
+    let ratio = split;
+    const move = (ev) => {
+      const rect = bodyRef.current?.getBoundingClientRect();
+      if (!rect || rect.width === 0) return;
+      ratio = Math.min(0.85, Math.max(0.15, (ev.clientX - rect.left) / rect.width));
+      setSplit(ratio);
+    };
+    const up = () => {
+      setDragging(false);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      setCodeFenceSetting("splitRatio", ratio);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
 
   function save() {
     finishDraft();
@@ -304,7 +332,11 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
           </button>
         </div>
       </div>
-      <div className={`sbx-body ${isFigure ? "" : "sbx-body-solo"}`}>
+      <div
+        ref={bodyRef}
+        className={`sbx-body ${isFigure ? "" : "sbx-body-solo"} ${dragging ? "sbx-dragging" : ""}`}
+        style={isFigure ? { "--sbx-code-grow": split, "--sbx-prev-grow": 1 - split } : undefined}
+      >
         <div className="sbx-code-pane">
           <div className="sbx-code" ref={hostRef} />
           {isFigure && dirty && (
@@ -318,6 +350,15 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
             </button>
           )}
         </div>
+        {isFigure && (
+          <div
+            className="sbx-divider"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize editor and preview"
+            onPointerDown={startResize}
+          />
+        )}
         {isFigure && (
           <div className="sbx-preview">
             <div className="sbx-controls" role="toolbar" aria-label="Preview controls">
