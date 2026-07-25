@@ -26,10 +26,11 @@ import { format } from "date-fns";
 const localStamp = (d = new Date()) => format(d, "yyyy-MM-dd'T'HH:mm:ss.000'Z'");
 const slugFromPath = (p) => p.replace(/^src\/content\/posts\//, "").replace(/\.md$/, "");
 
-function exitHref({ wasDraft, savedPath, entryHref, isDev }) {
-  if (wasDraft) return "/admin/drafts/";
-  if (isDev && savedPath) return `/posts/${slugFromPath(savedPath)}/`;
-  return entryHref;
+// Where to land after leaving the editor: the entry's read view — a draft's preview page,
+// or the live post — so a draft exits to itself just like a published post returns to /posts/.
+function exitHref({ isDraft, slug }) {
+  if (!slug) return "/";
+  return isDraft ? `/admin/drafts/${slug}/` : `/posts/${slug}/`;
 }
 
 const HEADER_OFFSET = 96; // reading line just below the sticky header
@@ -82,7 +83,6 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
   const fileRef = useRef(null);
   const uploadsRef = useRef(new Map());
   const slug = path ? slugFromPath(path) : null;
-  const entryHref = slug ? `/posts/${slug}/` : "/";
 
   useEffect(() => {
     if (!isNew || restored?.entryDate) return;
@@ -229,7 +229,7 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
     const prompt = isNew ? "Discard this new entry?" : "Discard your changes?";
     if (dirty && !window.confirm(prompt)) return;
     clearProgress();
-    window.location.href = exitHref({ wasDraft: !isNew && initialDraft, savedPath: null, entryHref, isDev: import.meta.env.DEV });
+    window.location.href = exitHref({ isDraft: initialDraft, slug });
   }
 
   function commitTagDraft() {
@@ -364,7 +364,8 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
         url: data.commit || data.url,
       });
 
-      const dest = exitHref({ wasDraft: !isNew && initialDraft, savedPath: data.path, entryHref, isDev: import.meta.env.DEV });
+      const savedSlug = data.path ? slugFromPath(data.path) : slug;
+      const dest = exitHref({ isDraft: draft, slug: savedSlug });
       setTimeout(() => { window.location.href = dest; }, 1400);
     } catch (e) {
       setToast({ kind: "err", msg: e.message });

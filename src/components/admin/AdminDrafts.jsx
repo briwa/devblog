@@ -13,7 +13,7 @@ export default function AdminDrafts({ drafts = [] }) {
       ) : (
         <div className="ar-list">
           {drafts.map((e) => (
-            <PostRow key={e.id} href={`/admin/edit?post=${e.id}`} title={e.title} tags={e.tags} date={fmtMedium(e.iso)} />
+            <PostRow key={e.id} href={`/admin/drafts/${e.id}`} title={e.title} tags={e.tags} date={fmtMedium(e.iso)} />
           ))}
         </div>
       )}
