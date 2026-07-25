@@ -116,6 +116,12 @@ const tags = parseTags(post.data.tags);
       }
     });
     watchFigureTheme(figures);
+    // A frame's first height report can fire during page parse, before this deferred module attaches its
+    // listener — so once we're here, push the theme to every frame. That applies the colour and prompts
+    // each frame to re-report its size (see themeSync), recovering figures that would otherwise stay 150px.
+    const primeFigures = () => figures().forEach((f) => pushFigureTheme(f.contentWindow));
+    if (document.readyState === 'complete') primeFigures();
+    else window.addEventListener('load', primeFigures);
     document.addEventListener('click', (e) => {
       const btn = e.target.closest('.sandbox-toggle');
       if (!btn) return;

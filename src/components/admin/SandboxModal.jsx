@@ -80,6 +80,7 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
 
   const codeLang = isFigure ? (type === "vue" ? "vue" : "javascript") : (srcLang === "vue" ? "vue" : "javascript");
   const canPlay = isFigure && type !== "vue"; // js figures own the pausable rAF loop
+  const canReset = isFigure && (type === "canvas" || type === "root"); // figures with an in-frame reset()
 
   // Rebuild the preview from the current code + meta. Manual (not on every keystroke) so the
   // author controls when the figure re-runs; the frame reloads paused (see buildSrcdoc control).
@@ -191,14 +192,14 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
   // Any fresh frame (rebuilt preview or explicit reset) starts paused.
   useEffect(() => { setPlaying(false); }, [frameKey]);
 
-  // Size the preview iframe to its content, matching the published figure's self-report.
+  // Size the preview iframe to its content, and drop the toolbar to paused when the frame resets itself
+  // (its in-frame reset() posts __sandboxReset — whether from the toolbar button or the author's code).
   useEffect(() => {
     const onMessage = (e) => {
-      const height = e.data && e.data.__sandboxHeight;
-      if (typeof height !== "number" || height <= 0) return;
-      if (frameRef.current && frameRef.current.contentWindow === e.source) {
-        frameRef.current.style.height = height + "px";
-      }
+      if (!frameRef.current || frameRef.current.contentWindow !== e.source || !e.data) return;
+      if (e.data.__sandboxReset) { setPlaying(false); return; }
+      const height = e.data.__sandboxHeight;
+      if (typeof height === "number" && height > 0) frameRef.current.style.height = height + "px";
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
@@ -224,9 +225,12 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
     win.postMessage(playing ? { __figpause: true } : { __figplay: true }, "*");
     setPlaying(!playing);
   }
-  // Remount the iframe to rebuild the figure from scratch — the same "initial state" the in-frame reset()
-  // global lands on (see buildSrcdoc), just driven from the toolbar instead of author code.
-  function resetFrame() { setFrameKey((k) => k + 1); }
+  // Reset via the frame's in-frame reset() (soft rewind to a paused frame 0, no remount/re-fetch). Figures
+  // without one (vue, static svg) fall back to a remount. setPlaying is handled by the __sandboxReset reply.
+  function resetFrame() {
+    if (canReset) frameRef.current?.contentWindow?.postMessage({ __figreset: true }, "*");
+    else setFrameKey((k) => k + 1);
+  }
 
   // Drag the divider to resize editor vs preview; clamp so neither pane collapses, and persist on release.
   function startResize(e) {

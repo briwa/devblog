@@ -263,7 +263,10 @@ export function buildSrcdoc({ preset, w, h, bg, auto, hover, control }, code, pr
   // Figure background: explicit `bg` wins; otherwise follow the reader's theme (see themeBgCss).
   // A sandboxed iframe renders opaque, so leaving it unpainted shows white — covers included.
   const bgCss = bg ? `body{background:${bg}}` : themeBgCss;
-  const themeSync = bg ? '' : themeBgListener;
+  // On the host's theme push: follow the colour (unless bg is explicit) AND re-report height. The push is
+  // the host's "my listener is attached" signal, so it doubles as a reliable late size report — the frame's
+  // own initial report can fire during page parse, before the host's (deferred module) listener exists.
+  const themeSync = `addEventListener('message',function(e){if(e.data&&e.data.__sbxBg){${bg ? '' : `document.documentElement.style.setProperty('--sbx-bg',e.data.__sbxBg);`}report()}});`;
 
   // Size #root to WxH so a mounted library has real dimensions; relative anchors its children, max-width avoids overflow.
   const rootCss = isRoot
@@ -288,31 +291,42 @@ export function buildSrcdoc({ preset, w, h, bg, auto, hover, control }, code, pr
     ? `let __fn=null,__raf=null;const loop=(fn)=>{__fn=fn;fn(0)};`
     : control
       // ts is elapsed-since-play, not the raw rAF stamp — else pressing play seconds after load hands the figure a huge t.
-      ? `let __fn=null,__raf=null,__el=0,__t0=null,__now=0;const __tick=(ts)=>{if(__t0==null)__t0=ts;__now=__el+(ts-__t0);__fn(__now);__raf=requestAnimationFrame(__tick)};const loop=(fn)=>{__fn=fn;fn(0);${resettable ? `__stop=()=>{if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}};return __stop` : `return ()=>{if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}}`}};`
+      // The reschedule is guarded (if __raf!=null) so reset() called from inside __fn doesn't resurrect the loop.
+      ? `let __fn=null,__raf=null,__el=0,__t0=null,__now=0;const __tick=(ts)=>{if(__t0==null)__t0=ts;__now=__el+(ts-__t0);__fn(__now);if(__raf!=null)__raf=requestAnimationFrame(__tick)};const loop=(fn)=>{__fn=fn;fn(0);${resettable ? `__stop=()=>{if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}};return __stop` : `return ()=>{if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}}`}};`
       : resettable
-        ? `const loop=(fn)=>{if(__stop)__stop();let id;const t=(ts)=>{fn(ts);id=requestAnimationFrame(t)};id=requestAnimationFrame(t);return (__stop=()=>cancelAnimationFrame(id))};`
+        // ts is elapsed-since-start (t0-based), matching control mode — so a figure keyed on t behaves the same
+        // on the page as in the editor. `live` guards the reschedule so reset() from inside fn stops cleanly.
+        ? `const loop=(fn)=>{if(__stop)__stop();let id,live=true,t0=null;const t=(ts)=>{if(t0==null)t0=ts;fn(ts-t0);if(live)id=requestAnimationFrame(t)};id=requestAnimationFrame(t);return (__stop=()=>{live=false;cancelAnimationFrame(id)})};`
         : `const loop=(fn)=>{let id;const t=(ts)=>{fn(ts);id=requestAnimationFrame(t)};id=requestAnimationFrame(t);return ()=>cancelAnimationFrame(id)};`;
 
   // Soft, no-reload reset() for canvas/root, exposed alongside ctx/width/height/loop: cancel the loop, run
-  // author cleanups, wipe the surface, then return to the initial state (page → play button; editor/auto →
-  // a fresh run). onCleanup(fn) lets a figure undo side effects a soft reset can't see; a pure loop needs none.
+  // author cleanups, wipe the surface, then return to the initial state. onCleanup(fn) lets a figure undo
+  // side effects a soft reset can't see; a pure loop needs none.
   const resetVars = resettable ? `let __stop=null,__cleanups=[];` : '';
+  // Return-to-initial, per mode: editor rewinds to a paused frame 0; a page figure re-shows its play button;
+  // an auto figure replays. The parent is notified so the editor toolbar can drop back to paused.
+  const resetHome = control
+    ? `__el=0;__t0=null;__now=0;__fn=null;run()`
+    : deferred
+      ? `__play.style.display='flex'`
+      : `run()`;
+  // Non-resettable frames (home-page hover covers, svg) still expose reset()/onCleanup() as no-ops so the
+  // same author code that calls reset() elsewhere doesn't throw here — a cover just loops and ignores it.
   const resetApi = resettable
     ? `const onCleanup=(fn)=>{__cleanups.push(fn)};` +
       `const __teardown=()=>{if(__stop){__stop();__stop=null}__cleanups.forEach(function(fn){try{fn()}catch(_){}});__cleanups=[];${isCanvas ? 'canvas.width=width' : "root.innerHTML=''"}};` +
-      (control
-        ? `const reset=()=>{__teardown();__el=0;__t0=null;__now=0;__fn=null;run()};`
-        : deferred
-          ? `const reset=()=>{__teardown();__play.style.display='flex'};`
-          : `const reset=()=>{__teardown();run()};`)
-    : '';
+      `const reset=()=>{__teardown();${resetHome};parent.postMessage({__sandboxReset:1},'*')};`
+    : `const onCleanup=()=>{};const reset=()=>{};`;
 
   const tail = deferred
     // Hide (not remove) the play button so reset() can bring it back for a fresh run.
-    ? `const __play=document.getElementById('__play'),__c=getComputedStyle(document.body).backgroundColor.match(/[\\d.]+/g);if(__c&&(__c.length<4||+__c[3]>0)&&(0.299*__c[0]+0.587*__c[1]+0.114*__c[2])<128)__play.classList.add('on-dark');__play.addEventListener('click',()=>{__play.style.display='none';start()});report();`
+    // __contrast keeps the play button legible against the figure's background; re-run it on each theme push
+    // (the parse-time background is only the media-query default until the host posts the resolved colour).
+    ? `const __play=document.getElementById('__play');const __contrast=()=>{const c=getComputedStyle(document.body).backgroundColor.match(/[\\d.]+/g);__play.classList.toggle('on-dark',!!(c&&(c.length<4||+c[3]>0)&&(0.299*c[0]+0.587*c[1]+0.114*c[2])<128))};__contrast();${bg ? '' : `addEventListener('message',function(e){if(e.data&&e.data.__sbxBg)requestAnimationFrame(__contrast)});`}__play.addEventListener('click',()=>{__play.style.display='none';start()});report();`
     : control
       // pause banks elapsed; play clears __t0 so the next tick rebases and the timeline resumes seamlessly.
-      ? `start();addEventListener('message',function(e){if(!e.data)return;if(e.data.__figpause){if(__raf!=null){cancelAnimationFrame(__raf);__raf=null;__el=__now}}else if(e.data.__figplay){if(__raf==null&&__fn){__t0=null;__raf=requestAnimationFrame(__tick)}}});`
+      // __figreset (canvas/root only) is the toolbar's Reset: soft rewind to a paused frame 0, no remount.
+      ? `start();addEventListener('message',function(e){if(!e.data)return;if(e.data.__figpause){if(__raf!=null){cancelAnimationFrame(__raf);__raf=null;__el=__now}}else if(e.data.__figplay){if(__raf==null&&__fn){__t0=null;__raf=requestAnimationFrame(__tick)}}${resettable ? `else if(e.data.__figreset){reset()}` : ''}});`
       : hover
         ? `start();addEventListener('message',function(e){if(!__fn)return;if(e.data&&e.data.__figplay){if(__raf==null){var _t=function(ts){__fn(ts);__raf=requestAnimationFrame(_t)};__raf=requestAnimationFrame(_t)}}else if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}});`
         : `start();`;
