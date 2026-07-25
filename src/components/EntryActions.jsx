@@ -12,7 +12,12 @@ export default function EntryActions({ slug, date = null }) {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
   const toTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
-  const showFab = CAN_EDIT || CAN_CREATE || scrolled;
+  // Under /admin every capability is on (it's the authoring area); public pages
+  // follow the hide-controls flag so a deploy can suppress the FABs.
+  const admin = window.location.pathname.startsWith("/admin");
+  const canEdit = CAN_EDIT || admin;
+  const canCreate = CAN_CREATE || admin;
+  const showFab = canEdit || canCreate || scrolled;
   if (!showFab) return null;
 
   const backToTop = scrolled && (
@@ -26,16 +31,16 @@ export default function EntryActions({ slug, date = null }) {
   return (
     <div className="editor-fab" role="toolbar" aria-label="Entry actions">
       {backToTop}
-      {(CAN_EDIT || CAN_CREATE) && (
+      {(canEdit || canCreate) && (
         <>
           {topDivider}
-          {CAN_EDIT && (
+          {canEdit && (
             <a className="fab-btn" href={`/admin/edit?post=${slug}`} aria-label="Edit entry" title="Edit entry">
               <Icon name="pencil" size={18} />
             </a>
           )}
-          {CAN_EDIT && CAN_CREATE && <div className="fab-divider" aria-hidden="true" />}
-          {CAN_CREATE && (
+          {canEdit && canCreate && <div className="fab-divider" aria-hidden="true" />}
+          {canCreate && (
             <a
               className="fab-btn fab-new"
               href={date ? `/admin/new?date=${date.slice(0, 10)}` : "/admin/new/"}
