@@ -24,13 +24,10 @@ import "react-day-picker/style.css";
 import { format } from "date-fns";
 
 const localStamp = (d = new Date()) => format(d, "yyyy-MM-dd'T'HH:mm:ss.000'Z'");
-const slugFromPath = (p) => p.replace(/^src\/content\/posts\//, "").replace(/\.md$/, "");
-
-// Where to land after leaving the editor: the entry's read view — a draft's preview page,
-// or the live post — so a draft exits to itself just like a published post returns to /posts/.
-function exitHref({ isDraft, slug }) {
-  if (!slug) return "/";
-  return isDraft ? `/admin/drafts/${slug}/` : `/posts/${slug}/`;
+// Leaving the editor just steps back to wherever the user came from; "/" is the fallback for a fresh tab.
+function goBack() {
+  if (window.history.length > 1) window.history.back();
+  else window.location.href = "/";
 }
 
 const HEADER_OFFSET = 96; // reading line just below the sticky header
@@ -82,7 +79,6 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
   const cmRef = useRef(null);
   const fileRef = useRef(null);
   const uploadsRef = useRef(new Map());
-  const slug = path ? slugFromPath(path) : null;
 
   useEffect(() => {
     if (!isNew || restored?.entryDate) return;
@@ -229,7 +225,7 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
     const prompt = isNew ? "Discard this new entry?" : "Discard your changes?";
     if (dirty && !window.confirm(prompt)) return;
     clearProgress();
-    window.location.href = exitHref({ isDraft: initialDraft, slug });
+    goBack();
   }
 
   function commitTagDraft() {
@@ -364,9 +360,7 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
         url: data.commit || data.url,
       });
 
-      const savedSlug = data.path ? slugFromPath(data.path) : slug;
-      const dest = exitHref({ isDraft: draft, slug: savedSlug });
-      setTimeout(() => { window.location.href = dest; }, 1400);
+      setTimeout(goBack, 1400);
     } catch (e) {
       setToast({ kind: "err", msg: e.message });
       setBusy(false);
