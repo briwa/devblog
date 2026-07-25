@@ -227,7 +227,7 @@ export function buildVueSrcdoc({ w, h, bg }, code, { externals = [], components 
 
 // Build one figure's inner document. Returns the RAW string (callers escape it) — keep attribute-agnostic, or it double-encodes.
 // `control` (editor preview only): auto-run but keep the rAF loop pausable via {__figplay}/{__figpause} messages.
-// canvas/root figures also get a `reset()` global (see resetDef) that reloads the srcdoc to rebuild from scratch.
+// canvas/root figures also get `reset()` + `onCleanup()` globals (see resetApi): a soft, no-reload rebuild.
 export function buildSrcdoc({ preset, w, h, bg, auto, hover, control }, code, prelude = '', externals = []) {
   const isCanvas = preset === 'canvas';
   // The emitted boilerplate is TERSE on purpose — it's inlined into every srcdoc, so its comments/indentation would ship verbatim.
@@ -281,31 +281,49 @@ export function buildSrcdoc({ preset, w, h, bg, auto, hover, control }, code, pr
     ? `const __fx=[${fetched.map((u) => JSON.stringify(u)).join(',')}];` +
       `const start=()=>__fx.reduce((p,u)=>p.then(()=>fetch(u)).then(r=>{if(!r.ok)throw new Error('external-lib '+u+' failed: HTTP '+r.status);return r.text()}).then(t=>{const s=document.createElement('script');s.textContent=t;document.head.appendChild(s)}),Promise.resolve()).then(run,e=>{document.body.innerHTML='<pre class=err>'+(e&&e.stack||e)+'</pre>';report()});`
     : `const start=run;`;
+  // canvas/root loops record their cancel handle in __stop so reset() can stop them (declared in resetVars).
+  const resettable = (isCanvas || isRoot) && !hover;
   // hover: draw first frame and freeze. control: auto-run but hold the rAF handle so it can be paused/resumed.
   const loopDef = hover
     ? `let __fn=null,__raf=null;const loop=(fn)=>{__fn=fn;fn(0)};`
     : control
       // ts is elapsed-since-play, not the raw rAF stamp — else pressing play seconds after load hands the figure a huge t.
-      ? `let __fn=null,__raf=null,__el=0,__t0=null,__now=0;const __tick=(ts)=>{if(__t0==null)__t0=ts;__now=__el+(ts-__t0);__fn(__now);__raf=requestAnimationFrame(__tick)};const loop=(fn)=>{__fn=fn;fn(0);return ()=>{if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}}};`
-      : `const loop=(fn)=>{let id;const t=(ts)=>{fn(ts);id=requestAnimationFrame(t)};id=requestAnimationFrame(t);return ()=>cancelAnimationFrame(id)};`;
+      ? `let __fn=null,__raf=null,__el=0,__t0=null,__now=0;const __tick=(ts)=>{if(__t0==null)__t0=ts;__now=__el+(ts-__t0);__fn(__now);__raf=requestAnimationFrame(__tick)};const loop=(fn)=>{__fn=fn;fn(0);${resettable ? `__stop=()=>{if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}};return __stop` : `return ()=>{if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}}`}};`
+      : resettable
+        ? `const loop=(fn)=>{if(__stop)__stop();let id;const t=(ts)=>{fn(ts);id=requestAnimationFrame(t)};id=requestAnimationFrame(t);return (__stop=()=>cancelAnimationFrame(id))};`
+        : `const loop=(fn)=>{let id;const t=(ts)=>{fn(ts);id=requestAnimationFrame(t)};id=requestAnimationFrame(t);return ()=>cancelAnimationFrame(id)};`;
+
+  // Soft, no-reload reset() for canvas/root, exposed alongside ctx/width/height/loop: cancel the loop, run
+  // author cleanups, wipe the surface, then return to the initial state (page → play button; editor/auto →
+  // a fresh run). onCleanup(fn) lets a figure undo side effects a soft reset can't see; a pure loop needs none.
+  const resetVars = resettable ? `let __stop=null,__cleanups=[];` : '';
+  const resetApi = resettable
+    ? `const onCleanup=(fn)=>{__cleanups.push(fn)};` +
+      `const __teardown=()=>{if(__stop){__stop();__stop=null}__cleanups.forEach(function(fn){try{fn()}catch(_){}});__cleanups=[];${isCanvas ? 'canvas.width=width' : "root.innerHTML=''"}};` +
+      (control
+        ? `const reset=()=>{__teardown();__el=0;__t0=null;__now=0;__fn=null;run()};`
+        : deferred
+          ? `const reset=()=>{__teardown();__play.style.display='flex'};`
+          : `const reset=()=>{__teardown();run()};`)
+    : '';
+
   const tail = deferred
-    ? `const __play=document.getElementById('__play'),__c=getComputedStyle(document.body).backgroundColor.match(/[\\d.]+/g);if(__c&&(__c.length<4||+__c[3]>0)&&(0.299*__c[0]+0.587*__c[1]+0.114*__c[2])<128)__play.classList.add('on-dark');__play.addEventListener('click',()=>{__play.remove();start()});report();`
+    // Hide (not remove) the play button so reset() can bring it back for a fresh run.
+    ? `const __play=document.getElementById('__play'),__c=getComputedStyle(document.body).backgroundColor.match(/[\\d.]+/g);if(__c&&(__c.length<4||+__c[3]>0)&&(0.299*__c[0]+0.587*__c[1]+0.114*__c[2])<128)__play.classList.add('on-dark');__play.addEventListener('click',()=>{__play.style.display='none';start()});report();`
     : control
       // pause banks elapsed; play clears __t0 so the next tick rebases and the timeline resumes seamlessly.
       ? `start();addEventListener('message',function(e){if(!e.data)return;if(e.data.__figpause){if(__raf!=null){cancelAnimationFrame(__raf);__raf=null;__el=__now}}else if(e.data.__figplay){if(__raf==null&&__fn){__t0=null;__raf=requestAnimationFrame(__tick)}}});`
       : hover
         ? `start();addEventListener('message',function(e){if(!__fn)return;if(e.data&&e.data.__figplay){if(__raf==null){var _t=function(ts){__fn(ts);__raf=requestAnimationFrame(_t)};__raf=requestAnimationFrame(_t)}}else if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}});`
         : `start();`;
-  // reset(), exposed to author code alongside ctx/width/height/loop: reloads the srcdoc to rebuild the
-  // figure from scratch — a page figure lands back on its play button, the editor preview on a fresh frame 0.
-  const resetDef = (isCanvas || isRoot) && !hover ? `const reset=()=>location.reload();` : '';
   const script =
     setup +
+    resetVars +
     loopDef +
+    resetApi +
     `const report=()=>parent.postMessage({__sandboxHeight:document.documentElement.scrollHeight},'*');` +
     `new ResizeObserver(report).observe(document.documentElement);` +
     themeSync +
-    resetDef +
     // Surface runtime throws too: the loop runs in later rAF frames, outside run()'s try, so an in-loop error would otherwise only hit the console.
     `const showErr=(m)=>{document.body.innerHTML='<pre class=err>'+m+'</pre>';report()};` +
     `addEventListener('error',e=>showErr((e.error&&e.error.stack)||e.message));` +
