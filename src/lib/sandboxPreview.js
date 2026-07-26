@@ -64,7 +64,7 @@ export function sandboxPreview({ onEdit, onCreate } = {}) {
   // The compact card shown when a figure isn't previewing: label + meta chips + actions.
   class SandboxCard extends WidgetType {
     constructor(block, index) { super(); this.block = block; this.index = index; }
-    sig() { const b = this.block; return `${b.from}:${b.to}:${b.vue}:${b.preset}:${b.bg}:${b.showCode}:${b.auto}:${b.preview}:${b.id}`; }
+    sig() { const b = this.block; return `${b.from}:${b.to}:${b.vue}:${b.preset}:${b.bg}:${b.showCode}:${b.control}:${b.preview}:${b.id}`; }
     eq(o) { return this.index === o.index && this.sig() === o.sig(); }
     toDOM(view) {
       const b = this.block;

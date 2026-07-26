@@ -19,6 +19,9 @@ const themeBgListener = `addEventListener('message',function(e){if(e.data&&e.dat
 
 // The figure types offered in the sandbox editor: js presets plus vue (its own lang).
 export const SANDBOX_TYPES = ['canvas', 'svg', 'root', 'vue'];
+// Author-selectable playback modes (`control=<mode>`): pausable (default — play button, then tap-to-pause + reset),
+// auto (runs on load, still tap-to-pause + reset), none (runs on load, no controls). `manual` is editor-only.
+export const CONTROL_MODES = ['pausable', 'auto', 'none'];
 export { DEFAULT_W, DEFAULT_H };
 
 // Reduce a parsed figure block to the toolbar's editable state (type folds lang + preset).
@@ -29,21 +32,21 @@ export function specToToolbar(spec = {}) {
     h: spec.h || DEFAULT_H,
     bg: spec.bg || '',
     showCode: Boolean(spec.showCode),
-    auto: Boolean(spec.auto),
+    control: spec.control || 'pausable',
     preview: Boolean(spec.preview),
     id: spec.id || '',
   };
 }
 
 // Serialize toolbar state back into a fence lang + meta string (inverse of parseMeta for figures).
-export function serializeSandboxMeta({ type, w, h, bg, showCode, auto, preview, id }) {
+export function serializeSandboxMeta({ type, w, h, bg, showCode, control, preview, id }) {
   const lang = type === 'vue' ? 'vue' : 'js';
   const tokens = [];
   if (type !== 'vue') tokens.push(type); // preset token; vue figures carry no preset
   if (w && h && !(Number(w) === DEFAULT_W && Number(h) === DEFAULT_H)) tokens.push(`${w}x${h}`);
   if (bg) tokens.push(`bg="${bg}"`);
   if (showCode) tokens.push('code');
-  if (auto && type !== 'vue') tokens.push('auto'); // vue is interactive on load, no deferral
+  if (control && control !== 'pausable' && type !== 'vue') tokens.push(`control=${control}`); // pausable is the default; vue has no deferral
   if (preview) tokens.push('preview');
   if (id) tokens.push(`id="${id}"`);
   return { lang, meta: tokens.join(' ') };
@@ -119,14 +122,17 @@ export function parseMeta(lang, meta) {
   const [w, h] = size ? size.split('x').map(Number) : [DEFAULT_W, DEFAULT_H];
   // Opt-in `code` token: expose a "Show code" toggle (off by default).
   const showCode = tokens.includes('code');
-  // Opt-in `auto` token: run on load instead of deferring behind a play button (which spares rAF until asked).
-  const auto = tokens.includes('auto');
+  // Playback mode `control=<mode>` (pausable | auto | none); default pausable. A bare `auto` token is shorthand
+  // for `control=auto`. Unknown values fall back to the default.
+  const cm = /(?:^|\s)control="?([a-z]+)"?/.exec(raw);
+  let control = cm ? cm[1] : (tokens.includes('auto') ? 'auto' : 'pausable');
+  if (!CONTROL_MODES.includes(control)) control = 'pausable';
   // Optional `bg="<color>"` (quotes required); charset-restricted so it can't break out of the style attribute.
   const bgMatch = /(?:^|\s)bg="([^"]*)"/.exec(raw);
   let bg = bgMatch ? bgMatch[1] : '';
   if (bg && !/^[#\w(),.%\s-]+$/.test(bg)) bg = '';
   // Opt-in `preview` token: nominate this figure as the entry's home-page cover.
-  return { preset, w, h, showCode, bg, auto, id, preview: tokens.includes('preview') };
+  return { preset, w, h, showCode, bg, control, id, preview: tokens.includes('preview') };
 }
 
 // Concatenate a group's `lib` blocks into a shared prelude — iframes can't share globals, so sharing is source-level.
@@ -226,13 +232,19 @@ export function buildVueSrcdoc({ w, h, bg }, code, { externals = [], components 
 }
 
 // Build one figure's inner document. Returns the RAW string (callers escape it) — keep attribute-agnostic, or it double-encodes.
-// `control` (editor preview only): auto-run but keep the rAF loop pausable via {__figplay}/{__figpause} messages.
+// `control` is the playback mode: 'pausable' (default) | 'auto' | 'none' | 'manual'. 'manual' (editor preview only)
+// lets the toolbar drive the rAF loop via {__figplay}/{__figpause}/{__figreset} messages; the rest run on the page.
 // canvas/root figures also get `reset()` + `onCleanup()` globals (see resetApi): a soft, no-reload rebuild.
-export function buildSrcdoc({ preset, w, h, bg, auto, hover, control }, code, prelude = '', externals = []) {
+export function buildSrcdoc({ preset, w, h, bg, hover, control }, code, prelude = '', externals = []) {
   const isCanvas = preset === 'canvas';
   // The emitted boilerplate is TERSE on purpose — it's inlined into every srcdoc, so its comments/indentation would ship verbatim.
   // `root` is a bare sized mount point so a container-owning library (Konva, Pts, Pixi) can take it directly.
   const isRoot = preset === 'root';
+  const mode = control || 'pausable';
+  const isManual = mode === 'manual'; // editor preview: toolbar drives play/pause/reset via postMessage
+  // Tap-to-pause: while running, tapping the surface pauses and reveals a resume button with a small reset below it.
+  // Canvas-only (not root/svg), for pausable + auto modes; never under editor-manual/hover.
+  const pausable = isCanvas && (mode === 'pausable' || mode === 'auto') && !hover;
   const surface = isCanvas
     ? '<canvas></canvas>'
     : isRoot
@@ -250,14 +262,24 @@ export function buildSrcdoc({ preset, w, h, bg, auto, hover, control }, code, pr
     .map((u) => `<script src="${u}"></script>`)
     .join('');
 
-  // canvas/root default to PAUSED behind an in-frame play button (spares rAF, and behaves identically on page + editor preview).
-  const deferred = (isCanvas || isRoot) && !auto && !hover && !control;
+  // Pausable canvas/root default to PAUSED behind an in-frame play button (spares rAF); auto/none/manual run without it.
+  const deferred = (isCanvas || isRoot) && mode === 'pausable' && !hover;
   const playBtn = deferred
     ? `<button id="__play" type="button" aria-label="Run figure"><svg viewBox="0 0 100 100" width="30" height="30" aria-hidden="true"><polygon points="38,28 38,72 74,50" fill="currentColor"/></svg></button>`
+    : '';
+  // Pause overlay for a running canvas: a resume (▶) button with a smaller reset (↺) below it; hidden while running.
+  const ctlOverlay = pausable
+    ? `<div id="__ctl" hidden><button id="__resume" type="button" aria-label="Resume figure"><svg viewBox="0 0 100 100" width="30" height="30" aria-hidden="true"><polygon points="38,28 38,72 74,50" fill="currentColor"/></svg></button><button id="__rst" type="button" aria-label="Reset figure"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button></div>`
     : '';
   // Play-overlay CSS, only when deferred; the runtime `.on-dark` variant flips fill/icon so the button always contrasts.
   const playCss = deferred
     ? `#__play{position:absolute;inset:0;margin:auto;width:64px;height:64px;border:0;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;background:rgba(20,20,20,.55);transition:background .15s,transform .15s}#__play:hover{background:rgba(20,20,20,.8);transform:scale(1.06)}#__play.on-dark{color:#111;background:rgba(245,245,245,.6)}#__play.on-dark:hover{background:rgba(245,245,245,.85)}`
+    : '';
+  // Pause-overlay CSS (pausable canvas only): container is click-through so a backdrop tap reaches the canvas to resume;
+  // buttons opt back into pointer events. Resume sits dead-centre exactly where the play button was; reset tucks below it.
+  // `.on-dark` mirrors the play button so the controls stay legible on any bg.
+  const ctlCss = pausable
+    ? `#__ctl{position:absolute;inset:0;pointer-events:none}#__ctl[hidden]{display:none}#__ctl button{position:absolute;pointer-events:auto;border:0;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;background:rgba(20,20,20,.55);transition:background .15s,transform .15s}#__ctl button:hover{background:rgba(20,20,20,.8)}#__resume{inset:0;margin:auto;width:64px;height:64px}#__resume:hover{transform:scale(1.06)}#__rst{left:50%;top:50%;transform:translate(-50%,42px);width:34px;height:34px}#__rst:hover{transform:translate(-50%,42px) scale(1.06)}#__ctl.on-dark button{color:#111;background:rgba(245,245,245,.6)}#__ctl.on-dark button:hover{background:rgba(245,245,245,.85)}`
     : '';
 
   // Figure background: explicit `bg` wins; otherwise follow the reader's theme (see themeBgCss).
@@ -277,7 +299,10 @@ export function buildSrcdoc({ preset, w, h, bg, auto, hover, control }, code, pr
   const media = hover
     ? `html,body{height:100%}canvas,svg{display:block;width:100%;height:100%}`
     : `canvas,svg{display:block;max-width:100%;height:auto}`;
-  const css = `html,body{margin:0}${bgCss}${rootCss}${media}.err{color:#c0392b;white-space:pre-wrap;font:12px/1.5 ui-monospace,monospace;padding:.75rem}${playCss}`;
+  // overflow:hidden — the frame is sized to the doc's scrollHeight (see .sandbox-frame), so a sub-pixel fraction from a
+  // scaled canvas (height:auto) would otherwise leave a hairline of overflow and a vertical scrollbar. scrollHeight is
+  // measured regardless of overflow, so auto-sizing is unaffected.
+  const css = `html,body{margin:0;overflow:hidden}${bgCss}${rootCss}${media}.err{color:#c0392b;white-space:pre-wrap;font:12px/1.5 ui-monospace,monospace;padding:.75rem}${playCss}${ctlCss}`;
 
   // prelude/code sit on their own lines in run() so a trailing `//` in the author's source can't comment out the closing brace.
   const loadExt = fetched.length
@@ -286,13 +311,17 @@ export function buildSrcdoc({ preset, w, h, bg, auto, hover, control }, code, pr
     : `const start=run;`;
   // canvas/root loops record their cancel handle in __stop so reset() can stop them (declared in resetVars).
   const resettable = (isCanvas || isRoot) && !hover;
-  // hover: draw first frame and freeze. control: auto-run but hold the rAF handle so it can be paused/resumed.
+  // hover: draw first frame and freeze. manual: auto-run but hold the rAF handle so the toolbar can pause/resume it.
   const loopDef = hover
     ? `let __fn=null,__raf=null;const loop=(fn)=>{__fn=fn;fn(0)};`
-    : control
+    : isManual
       // ts is elapsed-since-play, not the raw rAF stamp — else pressing play seconds after load hands the figure a huge t.
       // The reschedule is guarded (if __raf!=null) so reset() called from inside __fn doesn't resurrect the loop.
       ? `let __fn=null,__raf=null,__el=0,__t0=null,__now=0;const __tick=(ts)=>{if(__t0==null)__t0=ts;__now=__el+(ts-__t0);__fn(__now);if(__raf!=null)__raf=requestAnimationFrame(__tick)};const loop=(fn)=>{__fn=fn;fn(0);${resettable ? `__stop=()=>{if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}};return __stop` : `return ()=>{if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}}`}};`
+      : pausable
+        // Same elapsed-since-play timeline as control mode, but rAF starts immediately (loop → run) and pause/resume is
+        // driven in-frame by taps, not parent messages. __stop lets reset() cancel it; the leading guard drops any prior loop.
+        ? `let __fn=null,__raf=null,__el=0,__t0=null,__now=0;const __tick=(ts)=>{if(__t0==null)__t0=ts;__now=__el+(ts-__t0);__fn(__now);if(__raf!=null)__raf=requestAnimationFrame(__tick)};const loop=(fn)=>{if(__stop)__stop();__fn=fn;fn(0);__raf=requestAnimationFrame(__tick);return (__stop=()=>{if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}})};`
       : resettable
         // ts is elapsed-since-start (t0-based), matching control mode — so a figure keyed on t behaves the same
         // on the page as in the editor. `live` guards the reschedule so reset() from inside fn stops cleanly.
@@ -305,11 +334,14 @@ export function buildSrcdoc({ preset, w, h, bg, auto, hover, control }, code, pr
   const resetVars = resettable ? `let __stop=null,__cleanups=[];` : '';
   // Return-to-initial, per mode: editor rewinds to a paused frame 0; a page figure re-shows its play button;
   // an auto figure replays. The parent is notified so the editor toolbar can drop back to paused.
-  const resetHome = control
+  const resetHome = isManual
     ? `__el=0;__t0=null;__now=0;__fn=null;run()`
-    : deferred
-      ? `__play.style.display='flex'`
-      : `run()`;
+    : pausable
+      // Rewind the timeline and hide the pause overlay, then return to initial state: play button, or replay if auto.
+      ? `__el=0;__t0=null;__now=0;__fn=null;__ctl.hidden=true;` + (deferred ? `__play.style.display='flex'` : `run()`)
+      : deferred
+        ? `__play.style.display='flex'`
+        : `run()`;
   // Non-resettable frames (home-page hover covers, svg) still expose reset()/onCleanup() as no-ops so the
   // same author code that calls reset() elsewhere doesn't throw here — a cover just loops and ignores it.
   const resetApi = resettable
@@ -318,18 +350,31 @@ export function buildSrcdoc({ preset, w, h, bg, auto, hover, control }, code, pr
       `const reset=()=>{__teardown();${resetHome};parent.postMessage({__sandboxReset:1},'*')};`
     : `const onCleanup=()=>{};const reset=()=>{};`;
 
+  // Pausable canvas: tap the surface to toggle pause; when paused the overlay shows a resume + reset button.
+  // __ctlContrast keeps the overlay legible against the figure's background (mirrors the play button's contrast).
+  const pauseControls = pausable
+    ? `const __ctl=document.getElementById('__ctl');` +
+      `const __ctlContrast=()=>{const c=getComputedStyle(document.body).backgroundColor.match(/[\\d.]+/g);__ctl.classList.toggle('on-dark',!!(c&&(c.length<4||+c[3]>0)&&(0.299*c[0]+0.587*c[1]+0.114*c[2])<128))};__ctlContrast();${bg ? '' : `addEventListener('message',function(e){if(e.data&&e.data.__sbxBg)requestAnimationFrame(__ctlContrast)});`}` +
+      `const __pause=()=>{if(__raf!=null){cancelAnimationFrame(__raf);__raf=null;__el=__now;__ctl.hidden=false}};` +
+      `const __resumeFig=()=>{__ctl.hidden=true;if(__raf==null&&__fn){__t0=null;__raf=requestAnimationFrame(__tick)}};` +
+      `canvas.addEventListener('click',()=>{if(__raf!=null)__pause();else if(__fn)__resumeFig()});` +
+      `document.getElementById('__resume').addEventListener('click',e=>{e.stopPropagation();__resumeFig()});` +
+      `document.getElementById('__rst').addEventListener('click',e=>{e.stopPropagation();reset()});`
+    : '';
+
   const tail = deferred
     // Hide (not remove) the play button so reset() can bring it back for a fresh run.
     // __contrast keeps the play button legible against the figure's background; re-run it on each theme push
     // (the parse-time background is only the media-query default until the host posts the resolved colour).
-    ? `const __play=document.getElementById('__play');const __contrast=()=>{const c=getComputedStyle(document.body).backgroundColor.match(/[\\d.]+/g);__play.classList.toggle('on-dark',!!(c&&(c.length<4||+c[3]>0)&&(0.299*c[0]+0.587*c[1]+0.114*c[2])<128))};__contrast();${bg ? '' : `addEventListener('message',function(e){if(e.data&&e.data.__sbxBg)requestAnimationFrame(__contrast)});`}__play.addEventListener('click',()=>{__play.style.display='none';start()});report();`
-    : control
+    ? `const __play=document.getElementById('__play');const __contrast=()=>{const c=getComputedStyle(document.body).backgroundColor.match(/[\\d.]+/g);__play.classList.toggle('on-dark',!!(c&&(c.length<4||+c[3]>0)&&(0.299*c[0]+0.587*c[1]+0.114*c[2])<128))};__contrast();${bg ? '' : `addEventListener('message',function(e){if(e.data&&e.data.__sbxBg)requestAnimationFrame(__contrast)});`}__play.addEventListener('click',()=>{__play.style.display='none';start()});report();` + pauseControls
+    : isManual
       // pause banks elapsed; play clears __t0 so the next tick rebases and the timeline resumes seamlessly.
       // __figreset (canvas/root only) is the toolbar's Reset: soft rewind to a paused frame 0, no remount.
       ? `start();addEventListener('message',function(e){if(!e.data)return;if(e.data.__figpause){if(__raf!=null){cancelAnimationFrame(__raf);__raf=null;__el=__now}}else if(e.data.__figplay){if(__raf==null&&__fn){__t0=null;__raf=requestAnimationFrame(__tick)}}${resettable ? `else if(e.data.__figreset){reset()}` : ''}});`
       : hover
         ? `start();addEventListener('message',function(e){if(!__fn)return;if(e.data&&e.data.__figplay){if(__raf==null){var _t=function(ts){__fn(ts);__raf=requestAnimationFrame(_t)};__raf=requestAnimationFrame(_t)}}else if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}});`
-        : `start();`;
+        // Auto/none canvas: wire the controls before start() so its elements are captured even if run() throws and wipes the body.
+        : pauseControls + `start();`;
   const script =
     setup +
     resetVars +
@@ -346,7 +391,7 @@ export function buildSrcdoc({ preset, w, h, bg, auto, hover, control }, code, pr
     loadExt +
     tail;
 
-  return `<!doctype html><html><head><meta charset="utf-8"><style>${css}</style></head><body>${surface}${playBtn}${ext}<script>${script}</script></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><style>${css}</style></head><body>${surface}${playBtn}${ctlOverlay}${ext}<script>${script}</script></body></html>`;
 }
 
 // Scan raw markdown for sandbox fences with char offsets — the editor's inline preview works on source text, not the AST.

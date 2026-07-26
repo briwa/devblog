@@ -12,6 +12,7 @@ import { loadSandboxDraft, saveSandboxDraft, clearSandboxDraft } from "../../lib
 import { getCodeFenceSetting, setCodeFenceSetting } from "../../lib/codeFenceSettings.js";
 import {
   SANDBOX_TYPES,
+  CONTROL_MODES,
   buildSandboxFence,
   buildLibFence,
   buildSrcdoc,
@@ -26,7 +27,7 @@ const langCompartment = new Compartment();
 // Synchronous language support so highlighting is never subject to a lazy-import race.
 const langSupport = (name) => (name === "vue" ? vue() : javascript());
 
-// Build the preview srcdoc for the figure under edit; control:true so it runs but stays pausable.
+// Build the preview srcdoc for the figure under edit; control:'manual' so the modal toolbar drives play/pause/reset.
 function buildPreview({ type, w, h, bg, id }, code, siblings) {
   if (type === "vue") {
     return buildVueSrcdoc({ w, h, bg }, code, {
@@ -34,7 +35,7 @@ function buildPreview({ type, w, h, bg, id }, code, siblings) {
       components: sandboxVueComponents(siblings, id),
     });
   }
-  const spec = { preset: type, w, h, bg, control: true, id };
+  const spec = { preset: type, w, h, bg, control: 'manual', id };
   return buildSrcdoc(spec, code, sandboxPrelude(siblings, id), sandboxExternals(siblings, id));
 }
 
@@ -50,7 +51,7 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
   const [h, setH] = useState(seed.h || 360);
   const [bg, setBg] = useState(seed.bg || "");
   const [showCode, setShowCode] = useState(Boolean(seed.showCode));
-  const [auto, setAuto] = useState(Boolean(seed.auto));
+  const [control, setControl] = useState(seed.control || "pausable");
   const [preview, setPreview] = useState(Boolean(seed.preview));
   // Source-lib state
   const [srcLang, setSrcLang] = useState(seed.srcLang || "js");
@@ -103,7 +104,7 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
   const persist = () => {
     if (!draftKey || clearedRef.current) return;
     const code = cmRef.current ? cmRef.current.state.doc.toString() : (seed.code || "");
-    saveSandboxDraft(draftKey, { type, w, h, bg, showCode, auto, preview, srcLang, name, id: groupId, code });
+    saveSandboxDraft(draftKey, { type, w, h, bg, showCode, control, preview, srcLang, name, id: groupId, code });
   };
   persistRef.current = persist;
   const scheduleSave = () => {
@@ -181,7 +182,7 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
   useEffect(() => {
     if (!draftInitRef.current) { draftInitRef.current = true; return; }
     scheduleSaveRef.current();
-  }, [type, w, h, bg, showCode, auto, preview, srcLang, name, groupId]);
+  }, [type, w, h, bg, showCode, control, preview, srcLang, name, groupId]);
 
   // Flush synchronously on unload — the debounce timer won't survive a reload.
   useEffect(() => {
@@ -257,7 +258,7 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
     finishDraft();
     const body = cmRef.current ? cmRef.current.state.doc.toString() : seed.code || "";
     if (isFigure) {
-      const state = { type, w: Number(w) || undefined, h: Number(h) || undefined, bg, showCode, auto, preview, id: groupId };
+      const state = { type, w: Number(w) || undefined, h: Number(h) || undefined, bg, showCode, control, preview, id: groupId };
       onSave(buildSandboxFence(state, body));
     } else if (srcLang === "vue") {
       onSave(buildLibFence({ kind: "vue", name, id: groupId }, body));
@@ -296,9 +297,16 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
                 <span>Group</span>
                 <input type="text" placeholder="id" value={groupId} onChange={(e) => setGroupId(e.target.value)} />
               </label>
+              {!isVue && (
+                <label className="sbx-field">
+                  <span>Controls</span>
+                  <select value={control} onChange={(e) => setControl(e.target.value)}>
+                    {CONTROL_MODES.map((m) => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </label>
+              )}
               <div className="sbx-toggles">
                 <label className="sbx-check"><input type="checkbox" checked={showCode} onChange={(e) => setShowCode(e.target.checked)} /> show code</label>
-                {!isVue && <label className="sbx-check"><input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} /> auto-run</label>}
                 <label className="sbx-check"><input type="checkbox" checked={preview} onChange={(e) => setPreview(e.target.checked)} /> cover</label>
               </div>
             </>

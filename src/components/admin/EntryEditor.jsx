@@ -304,7 +304,7 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
     } else if (kind === "source") {
       setSandboxEdit({ ...base, modal: "source", initial: { srcLang: "js", name: "", id: "", code: "" } });
     } else {
-      setSandboxEdit({ ...base, modal: "figure", initial: { type: "canvas", w: DEFAULT_W, h: DEFAULT_H, bg: "", showCode: false, auto: false, preview: false, id: "", code: "// your code" } });
+      setSandboxEdit({ ...base, modal: "figure", initial: { type: "canvas", w: DEFAULT_W, h: DEFAULT_H, bg: "", showCode: false, control: "pausable", preview: false, id: "", code: "// your code" } });
     }
   };
 
