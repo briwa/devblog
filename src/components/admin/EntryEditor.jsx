@@ -14,6 +14,7 @@ import { parseTags, serializeTags, tagHref } from "../../lib/tags.js";
 import { uploadFilename } from "../../lib/publish.js";
 import { loadDraft, saveDraft, clearDraft } from "../../lib/editorDraft.js";
 import { sandboxPreview } from "../../lib/sandboxPreview.js";
+import { pushFigureTheme, watchFigureTheme } from "../../lib/sandboxTheme.js";
 import SandboxModal from "./SandboxModal.jsx";
 import EditorFind from "./EditorFind.jsx";
 import SandboxExternalModal from "./SandboxExternalModal.jsx";
@@ -96,6 +97,9 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
   const [scrolled, setScrolled] = useState(false);
   const [fabBottom, setFabBottom] = useState(null); // px; lifts above the mobile keyboard
   const [sandboxEdit, setSandboxEdit] = useState(null); // { mode, from, to, initial, siblings }
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState(null); // null while the render is in flight
+  const previewRef = useRef(null);
   const hostRef = useRef(null);
   const cmRef = useRef(null);
   const fileRef = useRef(null);
@@ -347,6 +351,69 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
     }
   }
 
+  // Render the current (unsaved) content through the real publish pipeline and show it inline.
+  async function openPreview() {
+    const body = cmRef.current ? cmRef.current.state.doc.toString() : md;
+    setPreviewHtml(null);
+    setPreviewOpen(true);
+    try {
+      const res = await fetch("/admin/api/preview", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ markdown: body }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Preview failed (${res.status})`);
+      setPreviewHtml(data.html || "");
+    } catch (e) {
+      setPreviewHtml(`<p class="ar-empty">Preview failed: ${e.message}</p>`);
+    }
+  }
+
+  // Wire the previewed figures exactly as the published entry does (see EntryView.astro): size each
+  // sandbox iframe to its reported height, keep its theme synced, and toggle code/preview.
+  useEffect(() => {
+    if (!previewOpen) return;
+    const onKey = (e) => { if (e.key === "Escape") setPreviewOpen(false); };
+    document.addEventListener("keydown", onKey);
+
+    const frames = () => previewRef.current?.querySelectorAll(".sandbox-frame") ?? [];
+    const onMessage = (e) => {
+      const h = e.data && e.data.__sandboxHeight;
+      if (typeof h !== "number") return;
+      for (const f of frames()) {
+        if (f.contentWindow === e.source) {
+          pushFigureTheme(f.contentWindow);
+          if (h > 0) {
+            f.style.height = h + "px";
+            f.closest(".sandbox")?.style.setProperty("--sandbox-h", h + "px");
+          }
+          break;
+        }
+      }
+    };
+    window.addEventListener("message", onMessage);
+    const stopTheme = watchFigureTheme(frames);
+    frames().forEach((f) => pushFigureTheme(f.contentWindow)); // prime frames that reported before we listened
+
+    const onToggle = (e) => {
+      const btn = e.target.closest(".sandbox-toggle");
+      if (!btn) return;
+      const fig = btn.closest(".sandbox");
+      const showingCode = fig.getAttribute("data-mode") === "code";
+      fig.setAttribute("data-mode", showingCode ? "preview" : "code");
+      btn.textContent = showingCode ? "Show code" : "Show preview";
+    };
+    document.addEventListener("click", onToggle);
+
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("message", onMessage);
+      stopTheme();
+      document.removeEventListener("click", onToggle);
+    };
+  }, [previewOpen, previewHtml]);
+
   async function save() {
     const body = cmRef.current ? cmRef.current.state.doc.toString() : md;
     const autoTitle = !title.trim();
@@ -559,6 +626,9 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
         <button className="fab-btn save" onClick={save} disabled={busy} aria-label="Save" title="Save">
           <Icon name="check" size={19} />
         </button>
+        <button className="fab-btn" onClick={openPreview} disabled={busy} aria-label="Preview" title="Preview">
+          <Icon name="eye" size={19} />
+        </button>
         <button className="fab-btn" onClick={cancel} disabled={busy} aria-label={isNew ? "Discard and go back" : "Cancel"} title={isNew ? "Discard and go back" : "Cancel"}>
           <Icon name="close" size={19} />
         </button>
@@ -578,6 +648,37 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
     </div>
     {/* Scroll-past-end room sits outside .entry so the side rails end at the content, not here. */}
     <div className="editor-scroll-space" aria-hidden="true" style={{ height: "50vh" }} />
+
+    {previewOpen && (
+      <div className="preview-overlay" role="dialog" aria-modal="true" aria-label="Preview">
+        <div className="editor-fab" role="toolbar" aria-label="Preview actions">
+          <button className="fab-btn" onClick={() => setPreviewOpen(false)} aria-label="Close preview" title="Close preview">
+            <Icon name="close" size={19} />
+          </button>
+        </div>
+        <div className="preview-scroll">
+          {/* Same markup + classes as the published EntryView, so global CSS renders it identically. */}
+          <div id="entry-view" className="preview-entry" ref={previewRef}>
+            <div className="entry-bar">
+              <h1 className="entry-h1">{title.trim() || "Untitled"}</h1>
+            </div>
+            <div className="entry-meta-block">
+              {tags.length > 0 && (
+                <ul className="hashtags" aria-label="Tags">
+                  {tags.map((tag) => (
+                    <li key={tag}><a className="hashtag" href={tagHref(tag)} title={tag}>#{tag}</a></li>
+                  ))}
+                </ul>
+              )}
+              <EntryDates created={entryDate} updated={updated} />
+            </div>
+            {previewHtml == null
+              ? <p className="ar-empty">Rendering preview…</p>
+              : <div className="prose" dangerouslySetInnerHTML={{ __html: previewHtml }} />}
+          </div>
+        </div>
+      </div>
+    )}
     </>
   );
 }

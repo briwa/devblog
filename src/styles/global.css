@@ -528,6 +528,20 @@ a.hashtag:hover { color: var(--accent); }
   border-radius: 8px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
 }
+
+/* Inline draft preview (EntryEditor): a full-screen sheet showing the entry as it'll publish. */
+.preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  overflow-y: auto;
+  background: var(--bg);
+}
+.preview-scroll {
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 3.5rem 1rem 6rem;
+}
 .prose blockquote {
   margin: 1.5rem 0;
   padding-left: 1rem;
@@ -627,8 +641,10 @@ a.hashtag:hover { color: var(--accent); }
 /* An invalid URL, shown verbatim so the author sees their typo; muted to read as inert. */
 .sandbox-external-bad { color: var(--muted); word-break: break-all; }
 
-/* Inline sandbox preview inside the CodeMirror source editor (sandboxPreview.js). */
-.cm-sandbox { margin: 0.5rem auto; }
+/* Inline sandbox preview inside the CodeMirror source editor (sandboxPreview.js).
+   No vertical margin: CM's height map doesn't count widget margins, so it would drift
+   the click/caret mapping below every card. The blank doc lines around it give the air. */
+.cm-sandbox { margin: 0 auto; }
 .cm-sandbox-bar {
   display: flex;
   align-items: center;
@@ -666,7 +682,7 @@ a.hashtag:hover { color: var(--accent); }
   align-items: center;
   justify-content: space-between;
   gap: 0.6rem;
-  margin: 0.5rem 0;
+  margin: 0;
   padding: 0.55rem 0.7rem;
   border: 1px solid var(--rule);
   border-radius: 6px;

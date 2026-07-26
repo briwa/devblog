@@ -2,7 +2,7 @@ import { defineConfig } from 'astro/config';
 import react from '@astrojs/react';
 import { access, mkdir, readdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { unified } from '@astrojs/markdown-remark';
+import { unified, createMarkdownProcessor } from '@astrojs/markdown-remark';
 import { remarkStripHtml } from './src/lib/remarkStripHtml.js';
 import { remarkSandbox } from './src/lib/remarkSandbox.js';
 // Keeps the dev-only /admin editing surface out of production builds.
@@ -120,6 +120,25 @@ function devPublish() {
             draft: frontmatterDraft(text),
             created: `${id.slice(0, 10)}T00:00:00.000Z`,
           });
+        } catch (e) {
+          sendJson(res, 500, { error: e.message });
+        }
+      });
+
+      // Render the editor's live (unsaved) markdown to the same prose HTML a published entry gets,
+      // so /admin/preview can show it exactly as it'll look. Same plugins + shiki as the site config.
+      let previewProc;
+      server.middlewares.use('/admin/api/preview', async (req, res, next) => {
+        if (req.method !== 'POST') return next();
+        try {
+          previewProc ??= await createMarkdownProcessor({
+            syntaxHighlight: 'shiki',
+            shikiConfig: { theme: 'css-variables' },
+            remarkPlugins: [remarkStripHtml, remarkSandbox],
+          });
+          const { markdown } = await readBody(req);
+          const { code } = await previewProc.render(String(markdown || ''));
+          sendJson(res, 200, { html: code });
         } catch (e) {
           sendJson(res, 500, { error: e.message });
         }
