@@ -436,9 +436,6 @@ a.hashtag:hover { color: var(--accent); }
 .fab-btn.fab-new:hover { color: #fff; background: var(--accent); filter: brightness(1.08); }
 .fab-divider { align-self: stretch; height: 1px; margin: 0.15rem 0; background: var(--rule); }
 
-/* Home admin FAB: two links, roomier gap. */
-.home-fab { gap: 0.5rem; }
-
 /* No room for a side gutter on narrow screens — dock it bottom-right instead. */
 @media (max-width: 56rem) {
   .editor-fab {
@@ -1179,7 +1176,7 @@ iframe.jr-cover-media { pointer-events: none; background: var(--bg); }
   .jr-card-date { flex-shrink: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
 }
 
-/* ── Month grid + pagination (also the admin drafts list) ────────────── */
+/* ── Month grid + pagination (also the admin entry list) ────────────── */
 .ar-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 1.6rem 0 1.75rem; }
 
 .ar-tagfilter { display: flex; align-items: center; gap: 0.5rem; margin: -0.75rem 0 1.25rem; font-size: 0.82rem; }
@@ -1203,6 +1200,11 @@ iframe.jr-cover-media { pointer-events: none; background: var(--bg); }
 .ar-row-link { position: absolute; inset: 0; z-index: 1; }
 .ar-row a.hashtag { position: relative; z-index: 2; }
 .ar-row-title { font-size: 0.95rem; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-badge {
+  flex-shrink: 0; align-self: center;
+  font-size: 0.62rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 0.05rem 0.35rem;
+}
 .ar-row-date { font-size: 0.82rem; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 .ar-empty { color: var(--muted); margin-top: 1rem; }

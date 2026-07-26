@@ -9,6 +9,7 @@ export const entrySummary = (p) => ({
   title: p.data.title,
   iso: createdOf(p).toISOString(),
   tags: parseTags(p.data.tags),
+  draft: isDraft(p),
 });
 
 // entrySummary plus the cover/excerpt the grid previews need; body-derived, so callers must supply p.body.

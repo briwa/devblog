@@ -1,0 +1,17 @@
+---
+import { getCollection } from 'astro:content';
+import EntryView from '../../../components/EntryView.astro';
+import { EDITING_ENABLED } from '../../../lib/permissions.js';
+
+export async function getStaticPaths() {
+  // Dev-only authoring preview: the same read view as a public entry, but its /admin path
+  // turns on the edit/delete/new FABs. Returns [] in prod so it never gets a public URL.
+  if (!EDITING_ENABLED) return [];
+  const posts = await getCollection('posts');
+  return posts.map((post) => ({ params: { slug: post.id }, props: { post } }));
+}
+
+const { post } = Astro.props;
+---
+
+<EntryView post={post} backHref="/admin" />

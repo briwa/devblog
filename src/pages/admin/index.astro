@@ -1,0 +1,24 @@
+---
+import Base from '../../layouts/Base.astro';
+import Icon from '../../components/Icon.astro';
+import AdminList from '../../components/admin/AdminList.jsx';
+import { EDITING_ENABLED } from '../../lib/permissions.js';
+import { loadPosts } from '../../lib/entries.js';
+import { entrySummary } from '../../lib/entryData.js';
+
+// Dev-only authoring hub: all entries (drafts included), newest first. Empty in prod so the archive stays read-only.
+const entries = EDITING_ENABLED
+  ? (await loadPosts()).map(entrySummary).sort((a, b) => b.iso.localeCompare(a.iso))
+  : [];
+---
+
+<Base title="Admin">
+  <AdminList entries={entries} client:only="react" />
+  {EDITING_ENABLED && (
+    <div class="editor-fab" role="toolbar" aria-label="Admin actions">
+      <a class="fab-btn fab-new" href="/admin/new/" aria-label="New entry" title="New entry">
+        <Icon name="newPost" size={19} />
+      </a>
+    </div>
+  )}
+</Base>

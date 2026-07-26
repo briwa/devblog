@@ -12,11 +12,11 @@ export default function EntryActions({ slug, date = null }) {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
   const toTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
-  // Under /admin every capability is on (it's the authoring area); public pages
-  // follow the hide-controls flag so a deploy can suppress the FABs.
+  // Edit/new/delete belong to the authoring area only: shown under /admin, never on a
+  // public entry page. (CAN_* also keeps them out of prod, where /admin isn't built anyway.)
   const admin = window.location.pathname.startsWith("/admin");
-  const canEdit = CAN_EDIT || admin;
-  const canCreate = CAN_CREATE || admin;
+  const canEdit = CAN_EDIT && admin;
+  const canCreate = CAN_CREATE && admin;
   const showFab = canEdit || canCreate || scrolled;
   if (!showFab) return null;
 

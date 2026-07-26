@@ -8,7 +8,8 @@ import { createdOf } from '../lib/created.js';
 import { parseTags, tagHref } from '../lib/tags.js';
 import EntryDates from './EntryDates.jsx';
 
-const { post } = Astro.props;
+// Under /admin the read view is an authoring preview, so its back link returns to the admin list.
+const { post, backHref = '/' } = Astro.props;
 const { Content } = await render(post);
 
 const created = createdOf(post);
@@ -46,7 +47,7 @@ const tags = parseTags(post.data.tags);
   {/* Prev/next resolved on the client so the neighbour list isn't baked into the HTML. */}
   <EntryNav id={post.id} client:only="react" />
 
-  <a class="back" href="/">← Home</a>
+  <a class="back" href={backHref}>← {backHref === '/' ? 'Home' : 'Admin'}</a>
 
   {/* Full-screen image viewer: clicking any prose image opens it here. Hidden until opened. */}
   <div id="lightbox" class="lightbox" aria-hidden="true">

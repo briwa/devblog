@@ -1,10 +1,11 @@
 import Hashtags from "./Hashtags.jsx";
 
-export default function PostRow({ href, title, tags, date }) {
+export default function PostRow({ href, title, tags, date, draft = false }) {
   return (
     <div className="ar-row">
       <a className="ar-row-link" href={href} aria-label={title} />
       <span className="ar-row-main">
+        {draft && <span className="ar-badge">Draft</span>}
         <span className="ar-row-title">{title}</span>
         <Hashtags tags={tags} max={3} link className="ar-row-tags" />
       </span>

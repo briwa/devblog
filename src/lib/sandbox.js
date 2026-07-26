@@ -361,7 +361,8 @@ export function buildSrcdoc({ preset, w, h, bg, hover, control }, code, prelude 
     ? `const __ctl=document.getElementById('__ctl');` +
       `const __ctlContrast=()=>{const c=getComputedStyle(document.body).backgroundColor.match(/[\\d.]+/g);__ctl.classList.toggle('on-dark',!!(c&&(c.length<4||+c[3]>0)&&(0.299*c[0]+0.587*c[1]+0.114*c[2])<128))};__ctlContrast();${bg ? '' : `addEventListener('message',function(e){if(e.data&&e.data.__sbxBg)requestAnimationFrame(__ctlContrast)});`}` +
       `const __pause=()=>{if(__raf!=null){cancelAnimationFrame(__raf);__raf=null;__el=__now;__ctl.hidden=false}};` +
-      `const __resumeFig=()=>{__ctl.hidden=true;if(__raf==null&&__fn){__t0=null;__raf=requestAnimationFrame(__tick)}};` +
+      // Hide the play button here too, not just in its own handler — a backdrop tap resumes without ever touching it.
+      `const __resumeFig=()=>{__ctl.hidden=true;${deferred ? `__play.style.display='none';` : ''}if(__raf==null&&__fn){__t0=null;__raf=requestAnimationFrame(__tick)}};` +
       `canvas.addEventListener('click',()=>{if(__raf!=null)__pause();else if(__fn)__resumeFig()});` +
       `document.getElementById('__resume').addEventListener('click',e=>{e.stopPropagation();__resumeFig()});` +
       `document.getElementById('__rst').addEventListener('click',e=>{e.stopPropagation();reset()});`
@@ -375,7 +376,8 @@ export function buildSrcdoc({ preset, w, h, bg, hover, control }, code, prelude 
     // Pausable canvas: prime frame 0 on load (start → loop draws but holds), then play resumes the held loop.
     // Root: no in-frame pause, so keep it blank until play, where start() runs and animates.
     ? pausable
-      ? playSetup + `__play.addEventListener('click',()=>{__play.style.display='none';__resumeFig()});start();report();` + pauseControls
+      // Controls before start() so their elements are captured even if run() throws and wipes the body.
+      ? playSetup + pauseControls + `__play.addEventListener('click',()=>__resumeFig());start();report();`
       : playSetup + `__play.addEventListener('click',()=>{__play.style.display='none';start()});report();`
     : isManual
       // pause banks elapsed; play clears __t0 so the next tick rebases and the timeline resumes seamlessly.
