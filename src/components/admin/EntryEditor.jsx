@@ -57,6 +57,26 @@ const theme = EditorView.theme({
   ".cm-line::selection, .cm-line ::selection": {
     backgroundColor: "color-mix(in srgb, var(--accent) 28%, transparent)",
   },
+  // Slash-command autocomplete popup, themed to match the editor instead of the light default.
+  ".cm-tooltip.cm-tooltip-autocomplete": {
+    backgroundColor: "var(--code-bg)",
+    border: "1px solid var(--rule)",
+    borderRadius: "6px",
+    boxShadow: "0 4px 16px rgba(0, 0, 0, 0.25)",
+  },
+  ".cm-tooltip-autocomplete > ul": {
+    fontFamily: "'Roboto Mono', ui-monospace, 'SF Mono', monospace",
+  },
+  ".cm-tooltip-autocomplete > ul > li": {
+    color: "var(--ink)",
+    padding: "2px 6px",
+  },
+  ".cm-tooltip-autocomplete > ul > li[aria-selected]": {
+    backgroundColor: "color-mix(in srgb, var(--accent) 22%, transparent)",
+    color: "var(--ink)",
+  },
+  ".cm-completionDetail": { color: "var(--muted)" },
+  ".cm-completionIcon": { display: "none" },
 });
 
 export default function EntryEditor({ markdown: md = "", title: initialTitle = "", date = null, updated = null, path = null, isNew = false, tags: initialTags = "", draft: initialDraft = false }) {
