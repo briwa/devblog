@@ -202,7 +202,8 @@ export function buildVueSrcdoc({ w, h, bg }, code, { externals = [], components 
     .join('');
   const bgCss = bg ? `body{background:${bg}}` : themeBgCss; // no explicit bg → follow the reader's theme
   const rootCss = `#root{position:relative;width:${w}px;height:${h}px;max-width:100%}`;
-  const css = `html,body{margin:0}${bgCss}${rootCss}canvas,svg{display:block;max-width:100%;height:auto}.err{color:#c0392b;white-space:pre-wrap;font:12px/1.5 ui-monospace,monospace;padding:.75rem}`;
+  // overflow:hidden mirrors buildSrcdoc — clip the sub-pixel hairline a scaled canvas/svg (height:auto) leaves, else a scrollbar.
+  const css = `html,body{margin:0;overflow:hidden}${bgCss}${rootCss}canvas,svg{display:block;max-width:100%;height:auto}.err{color:#c0392b;white-space:pre-wrap;font:12px/1.5 ui-monospace,monospace;padding:.75rem}`;
 
   // Virtual FS the loader reads: group components + the figure's SFC, embedded via escapeTemplate so </script> survives.
   const files = [

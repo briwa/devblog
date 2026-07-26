@@ -549,6 +549,18 @@ a.hashtag:hover { color: var(--accent); }
   color: var(--muted);
   font-style: italic;
 }
+/* `---` renders as a book-style dinkus (three centered dots), not a hard rule. */
+.prose hr {
+  border: 0;
+  margin: 2.5rem 0;
+  color: var(--muted);
+  text-align: center;
+}
+.prose hr::before {
+  content: "\2022\a0\a0\a0\2022\a0\a0\a0\2022";
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+}
 .prose :not(pre) > code {
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
   font-size: 0.85em;
