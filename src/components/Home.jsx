@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { fmtFull, fmtMonthYear } from "../lib/dates.js";
 import Hashtags from "./Hashtags.jsx";
-import PostCard, { Cover, play } from "./PostCard.jsx";
+import PostCard, { Cover, hoverPlay, hoverStop } from "./PostCard.jsx";
 
 const RECENT = 3; // cards beside the spotlight on the "Today" page
 const PER_PAGE = 9; // 3×3 grid on every other page
@@ -182,8 +182,8 @@ export default function Home() {
                 <a className="jr-spot-card" href={`/posts/${spotlight.id}/`}>
                   <div
                     className="jr-cover jr-spot-cover"
-                    onMouseEnter={(e) => play(e.currentTarget, true)}
-                    onMouseLeave={(e) => play(e.currentTarget, false)}
+                    onMouseEnter={(e) => hoverPlay(e.currentTarget)}
+                    onMouseLeave={(e) => hoverStop(e.currentTarget)}
                   >
                     <Cover cover={spotlight.cover} />
                     <div className="jr-cover-shade" />

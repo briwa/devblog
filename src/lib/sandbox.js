@@ -399,9 +399,9 @@ export function buildSrcdoc({ preset, w, h, bg, hover, control }, code, prelude 
       // __figreset (canvas/root only) is the toolbar's Reset: soft rewind to a paused frame 0, no remount.
       ? `start();addEventListener('message',function(e){if(!e.data)return;if(e.data.__figpause){if(__raf!=null){cancelAnimationFrame(__raf);__raf=null;__el=__now}}else if(e.data.__figplay){if(__raf==null&&__fn){__t0=null;__raf=requestAnimationFrame(__tick)}}${resettable ? `else if(e.data.__figreset){reset()}` : ''}});`
       : hover
-        // Draw frame 0, then play on {__figplay:true} / pause on {__figplay:false}, banking elapsed so re-hover resumes
-        // where it stopped. Only react to __figplay messages — a theme (__sbxBg) push must not pause a hovered figure.
-        ? `start();addEventListener('message',function(e){if(!__fn||!e.data)return;if(e.data.__figplay){if(__raf==null){__t0=null;__raf=requestAnimationFrame(__tick)}}else if('__figplay' in e.data){if(__raf!=null){cancelAnimationFrame(__raf);__raf=null;__el=__now}}});`
+        // Draw frame 0, then play on {__figplay:true} / stop on {__figplay:false}, rewinding to frame 0 on leave so the
+        // next hover restarts fresh. Only react to __figplay messages — a theme (__sbxBg) push must not pause a hovered figure.
+        ? `start();addEventListener('message',function(e){if(!__fn||!e.data)return;if(e.data.__figplay){if(__raf==null){__t0=null;__raf=requestAnimationFrame(__tick)}}else if('__figplay' in e.data){if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}__el=0;__t0=null;__now=0;__fn(0)}});`
         // Auto/none canvas: wire the controls before start() so its elements are captured even if run() throws and wipes
         // the body. An auto (pausable) figure draws frame 0 in start(), then __resumeFig kicks the held loop into motion.
         : pauseControls + `start();` + (pausable ? `__resumeFig();` : ``);
