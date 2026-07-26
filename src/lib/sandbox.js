@@ -320,9 +320,10 @@ export function buildSrcdoc({ preset, w, h, bg, hover, control }, code, prelude 
       // The reschedule is guarded (if __raf!=null) so reset() called from inside __fn doesn't resurrect the loop.
       ? `let __fn=null,__raf=null,__el=0,__t0=null,__now=0;const __tick=(ts)=>{if(__t0==null)__t0=ts;__now=__el+(ts-__t0);__fn(__now);if(__raf!=null)__raf=requestAnimationFrame(__tick)};const loop=(fn)=>{__fn=fn;fn(0);${resettable ? `__stop=()=>{if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}};return __stop` : `return ()=>{if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}}`}};`
       : pausable
-        // Same elapsed-since-play timeline as control mode, but rAF starts immediately (loop → run) and pause/resume is
-        // driven in-frame by taps, not parent messages. __stop lets reset() cancel it; the leading guard drops any prior loop.
-        ? `let __fn=null,__raf=null,__el=0,__t0=null,__now=0;const __tick=(ts)=>{if(__t0==null)__t0=ts;__now=__el+(ts-__t0);__fn(__now);if(__raf!=null)__raf=requestAnimationFrame(__tick)};const loop=(fn)=>{if(__stop)__stop();__fn=fn;fn(0);__raf=requestAnimationFrame(__tick);return (__stop=()=>{if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}})};`
+        // Same elapsed-since-play timeline as manual mode: loop() draws frame 0 but does NOT schedule rAF — the tail
+        // kicks it (via __resumeFig) on play/autorun, so a deferred figure shows its first frame instead of a blank
+        // canvas behind the play button. Pause/resume is driven in-frame by taps; __stop lets reset() cancel it.
+        ? `let __fn=null,__raf=null,__el=0,__t0=null,__now=0;const __tick=(ts)=>{if(__t0==null)__t0=ts;__now=__el+(ts-__t0);__fn(__now);if(__raf!=null)__raf=requestAnimationFrame(__tick)};const loop=(fn)=>{if(__stop)__stop();__fn=fn;fn(0);return (__stop=()=>{if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}})};`
       : resettable
         // ts is elapsed-since-start (t0-based), matching control mode — so a figure keyed on t behaves the same
         // on the page as in the editor. `live` guards the reschedule so reset() from inside fn stops cleanly.
@@ -338,8 +339,9 @@ export function buildSrcdoc({ preset, w, h, bg, hover, control }, code, prelude 
   const resetHome = isManual
     ? `__el=0;__t0=null;__now=0;__fn=null;run()`
     : pausable
-      // Rewind the timeline and hide the pause overlay, then return to initial state: play button, or replay if auto.
-      ? `__el=0;__t0=null;__now=0;__fn=null;__ctl.hidden=true;` + (deferred ? `__play.style.display='flex'` : `run()`)
+      // Rewind the timeline, hide the overlay, redraw frame 0 (run → loop draws but holds), then return to the initial
+      // state: paused first frame behind the play button (deferred), or resume the loop (auto).
+      ? `__el=0;__t0=null;__now=0;__fn=null;__ctl.hidden=true;run();` + (deferred ? `__play.style.display='flex'` : `__resumeFig()`)
       : deferred
         ? `__play.style.display='flex'`
         : `run()`;
@@ -363,19 +365,25 @@ export function buildSrcdoc({ preset, w, h, bg, hover, control }, code, prelude 
       `document.getElementById('__rst').addEventListener('click',e=>{e.stopPropagation();reset()});`
     : '';
 
+  // Hide (not remove) the play button so reset() can bring it back for a fresh run.
+  // __contrast keeps the play button legible against the figure's background; re-run it on each theme push
+  // (the parse-time background is only the media-query default until the host posts the resolved colour).
+  const playSetup = `const __play=document.getElementById('__play');const __contrast=()=>{const c=getComputedStyle(document.body).backgroundColor.match(/[\\d.]+/g);__play.classList.toggle('on-dark',!!(c&&(c.length<4||+c[3]>0)&&(0.299*c[0]+0.587*c[1]+0.114*c[2])<128))};__contrast();${bg ? '' : `addEventListener('message',function(e){if(e.data&&e.data.__sbxBg)requestAnimationFrame(__contrast)});`}`;
   const tail = deferred
-    // Hide (not remove) the play button so reset() can bring it back for a fresh run.
-    // __contrast keeps the play button legible against the figure's background; re-run it on each theme push
-    // (the parse-time background is only the media-query default until the host posts the resolved colour).
-    ? `const __play=document.getElementById('__play');const __contrast=()=>{const c=getComputedStyle(document.body).backgroundColor.match(/[\\d.]+/g);__play.classList.toggle('on-dark',!!(c&&(c.length<4||+c[3]>0)&&(0.299*c[0]+0.587*c[1]+0.114*c[2])<128))};__contrast();${bg ? '' : `addEventListener('message',function(e){if(e.data&&e.data.__sbxBg)requestAnimationFrame(__contrast)});`}__play.addEventListener('click',()=>{__play.style.display='none';start()});report();` + pauseControls
+    // Pausable canvas: prime frame 0 on load (start → loop draws but holds), then play resumes the held loop.
+    // Root: no in-frame pause, so keep it blank until play, where start() runs and animates.
+    ? pausable
+      ? playSetup + `__play.addEventListener('click',()=>{__play.style.display='none';__resumeFig()});start();report();` + pauseControls
+      : playSetup + `__play.addEventListener('click',()=>{__play.style.display='none';start()});report();`
     : isManual
       // pause banks elapsed; play clears __t0 so the next tick rebases and the timeline resumes seamlessly.
       // __figreset (canvas/root only) is the toolbar's Reset: soft rewind to a paused frame 0, no remount.
       ? `start();addEventListener('message',function(e){if(!e.data)return;if(e.data.__figpause){if(__raf!=null){cancelAnimationFrame(__raf);__raf=null;__el=__now}}else if(e.data.__figplay){if(__raf==null&&__fn){__t0=null;__raf=requestAnimationFrame(__tick)}}${resettable ? `else if(e.data.__figreset){reset()}` : ''}});`
       : hover
         ? `start();addEventListener('message',function(e){if(!__fn)return;if(e.data&&e.data.__figplay){if(__raf==null){var _t=function(ts){__fn(ts);__raf=requestAnimationFrame(_t)};__raf=requestAnimationFrame(_t)}}else if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}});`
-        // Auto/none canvas: wire the controls before start() so its elements are captured even if run() throws and wipes the body.
-        : pauseControls + `start();`;
+        // Auto/none canvas: wire the controls before start() so its elements are captured even if run() throws and wipes
+        // the body. An auto (pausable) figure draws frame 0 in start(), then __resumeFig kicks the held loop into motion.
+        : pauseControls + `start();` + (pausable ? `__resumeFig();` : ``);
   const script =
     setup +
     resetVars +
