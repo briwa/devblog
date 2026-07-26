@@ -312,9 +312,11 @@ export function buildSrcdoc({ preset, w, h, bg, hover, control }, code, prelude 
     : `const start=run;`;
   // canvas/root loops record their cancel handle in __stop so reset() can stop them (declared in resetVars).
   const resettable = (isCanvas || isRoot) && !hover;
-  // hover: draw first frame and freeze. manual: auto-run but hold the rAF handle so the toolbar can pause/resume it.
+  // hover: draw first frame and freeze; play/pause on hover uses the same elapsed-banking timeline as manual/pausable
+  // (bank __el on leave, rebase __t0 on re-enter) so re-hovering resumes where it stopped instead of jumping to the
+  // frame it would be at in raw page time. manual: auto-run but hold the rAF handle so the toolbar can pause/resume it.
   const loopDef = hover
-    ? `let __fn=null,__raf=null;const loop=(fn)=>{__fn=fn;fn(0)};`
+    ? `let __fn=null,__raf=null,__el=0,__t0=null,__now=0;const __tick=(ts)=>{if(__t0==null)__t0=ts;__now=__el+(ts-__t0);__fn(__now);if(__raf!=null)__raf=requestAnimationFrame(__tick)};const loop=(fn)=>{__fn=fn;fn(0)};`
     : isManual
       // ts is elapsed-since-play, not the raw rAF stamp — else pressing play seconds after load hands the figure a huge t.
       // The reschedule is guarded (if __raf!=null) so reset() called from inside __fn doesn't resurrect the loop.
