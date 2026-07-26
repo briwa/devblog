@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { unified, createMarkdownProcessor } from '@astrojs/markdown-remark';
 import { remarkStripHtml } from './src/lib/remarkStripHtml.js';
 import { remarkSandbox } from './src/lib/remarkSandbox.js';
+import { remarkExternalLinks } from './src/lib/remarkExternalLinks.js';
 // Keeps the dev-only /admin editing surface out of production builds.
 import { adminBuild } from './src/lib/adminBuild.js';
 import {
@@ -134,7 +135,7 @@ function devPublish() {
           previewProc ??= await createMarkdownProcessor({
             syntaxHighlight: 'shiki',
             shikiConfig: { theme: 'css-variables' },
-            remarkPlugins: [remarkStripHtml, remarkSandbox],
+            remarkPlugins: [remarkStripHtml, remarkSandbox, remarkExternalLinks],
           });
           const { markdown } = await readBody(req);
           const { code } = await previewProc.render(String(markdown || ''));
@@ -258,7 +259,7 @@ export default defineConfig({
   markdown: {
     syntaxHighlight: 'shiki',
     shikiConfig: { theme: 'css-variables' },
-    processor: unified({ remarkPlugins: [remarkStripHtml, remarkSandbox] }),
+    processor: unified({ remarkPlugins: [remarkStripHtml, remarkSandbox, remarkExternalLinks] }),
   },
   vite: { plugins: [devPublish()] },
 });
