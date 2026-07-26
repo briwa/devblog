@@ -5,6 +5,7 @@ import { syntaxHighlighting, codeFolding, foldGutter, foldKeymap, bracketMatchin
 import { javascript } from "@codemirror/lang-javascript";
 import { vue } from "@codemirror/lang-vue";
 import Icon from "../Icon.jsx";
+import EditorFind from "./EditorFind.jsx";
 import { codeServices } from "../../lib/editorSetup.js";
 import { codeHighlightStyle } from "../../lib/codeHighlight.js";
 import { loadSandboxDraft, saveSandboxDraft, clearSandboxDraft } from "../../lib/sandboxDraft.js";
@@ -343,6 +344,7 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
       >
         <div className="sbx-code-pane">
           <div className="sbx-code" ref={hostRef} />
+          <EditorFind viewRef={cmRef} scopeRef={hostRef} />
           {isFigure && dirty && (
             <button
               className="sbx-save-fab"

@@ -7,6 +7,7 @@ import { EditorView, keymap } from "@codemirror/view";
 import { history, historyKeymap, defaultKeymap, indentMore, indentLess } from "@codemirror/commands";
 import { indentUnit, indentOnInput } from "@codemirror/language";
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
+import { editorFind } from "./editorFind.js";
 
 // Tab indents whole lines only when there's a selection; a bare cursor inserts an indent unit
 // inline, so mid-line Tab lands where the cursor is instead of jumping to the line start.
@@ -28,6 +29,7 @@ export function codeServices(extraKeys = []) {
     indentUnit.of("  "),
     indentOnInput(),
     closeBrackets(),
+    editorFind,
     keymap.of([...codeKeybindings, ...extraKeys]),
   ];
 }

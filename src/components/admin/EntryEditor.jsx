@@ -15,6 +15,7 @@ import { uploadFilename } from "../../lib/publish.js";
 import { loadDraft, saveDraft, clearDraft } from "../../lib/editorDraft.js";
 import { sandboxPreview } from "../../lib/sandboxPreview.js";
 import SandboxModal from "./SandboxModal.jsx";
+import EditorFind from "./EditorFind.jsx";
 import SandboxExternalModal from "./SandboxExternalModal.jsx";
 import { findSandboxBlocks, specToToolbar, DEFAULT_W, DEFAULT_H } from "../../lib/sandbox.js";
 import { CAN_DELETE } from "../../lib/permissions.js";
@@ -510,6 +511,7 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
       </div>
 
       <div className="cm-host" ref={hostRef}></div>
+      <EditorFind viewRef={cmRef} scopeRef={hostRef} />
 
       {sandboxEdit && (sandboxEdit.modal === "external" ? (
         <SandboxExternalModal
