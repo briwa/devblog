@@ -10,7 +10,7 @@ import { Decoration, EditorView, WidgetType, ViewPlugin, keymap } from "@codemir
 import { StateField, StateEffect, Prec } from "@codemirror/state";
 import { autocompletion, completionStatus } from "@codemirror/autocomplete";
 import { buildSrcdoc, buildVueSrcdoc, findSandboxBlocks, sandboxPrelude, sandboxExternals, sandboxVueComponents } from "./sandbox.js";
-import { pushFigureTheme, watchFigureTheme } from "./sandboxTheme.js";
+import { pushFigureTheme, watchFigureTheme, watchFigureVisibility } from "./sandboxTheme.js";
 
 const togglePreview = StateEffect.define();
 
@@ -202,12 +202,14 @@ export function sandboxPreview({ onEdit, onCreate } = {}) {
       constructor(view) {
         this.view = view;
         const frames = () => view.dom.querySelectorAll(".cm-sandbox iframe");
+        this.vis = watchFigureVisibility(frames);
         this.onMessage = (e) => {
           const h = e.data && e.data.__sandboxHeight;
           if (typeof h !== "number") return;
           for (const f of frames()) {
             if (f.contentWindow === e.source) {
               pushFigureTheme(f.contentWindow); // frame reported in → hand it the current theme
+              this.vis.sync(); // …and the current visibility, now that it's listening
               if (h > 0) { // ignore a hidden frame's 0
                 f.style.height = h + "px";
                 view.requestMeasure();
@@ -219,7 +221,7 @@ export function sandboxPreview({ onEdit, onCreate } = {}) {
         window.addEventListener("message", this.onMessage);
         this.stopTheme = watchFigureTheme(frames);
       }
-      destroy() { window.removeEventListener("message", this.onMessage); this.stopTheme(); }
+      destroy() { window.removeEventListener("message", this.onMessage); this.stopTheme(); this.vis.stop(); }
     }
   );
 

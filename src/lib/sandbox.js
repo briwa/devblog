@@ -17,6 +17,20 @@ const FIG_BG_DARK = '#17171a';
 const themeBgCss = `:root{--sbx-bg:${FIG_BG_LIGHT}}@media(prefers-color-scheme:dark){:root{--sbx-bg:${FIG_BG_DARK}}}body{background:var(--sbx-bg)}`;
 const themeBgListener = `addEventListener('message',function(e){if(e.data&&e.data.__sbxBg)document.documentElement.style.setProperty('--sbx-bg',e.data.__sbxBg)});`;
 
+// Park every rAF-driven animation while the reader can't see this figure, so idle figures stop burning CPU.
+// Wrapping rAF is mode-agnostic — loop(), author code, and libraries all park together, and the single pending
+// frame is replayed on wake (one time-jump, same as the browser's own hidden-tab throttling). Two gates, both
+// must be open: __gVis from the frame's own visibilitychange (hidden tab), __gHost from the host's {__figvis}
+// (window unfocused / scrolled off-screen — see watchFigureVisibility). Terse: it's inlined into every srcdoc.
+const VIS_GATE =
+  `const __RAF=window.requestAnimationFrame,__CAF=window.cancelAnimationFrame;` +
+  `let __rq=new Map(),__rk=0,__gVis=!document.hidden,__gHost=true;const __ok=()=>__gVis&&__gHost;` +
+  `window.requestAnimationFrame=(cb)=>{if(__ok())return __RAF(cb);const k=--__rk;__rq.set(k,cb);return k};` +
+  `window.cancelAnimationFrame=(id)=>{if(id<0)__rq.delete(id);else __CAF(id)};` +
+  `const __wake=()=>{if(__ok()&&__rq.size){const q=__rq;__rq=new Map();q.forEach(cb=>__RAF(cb))}};` +
+  `addEventListener('visibilitychange',()=>{__gVis=!document.hidden;__wake()});` +
+  `addEventListener('message',(e)=>{if(e.data&&'__figvis'in e.data){__gHost=!!e.data.__figvis;__wake()}});`;
+
 // The figure types offered in the sandbox editor: js presets plus vue (its own lang).
 export const SANDBOX_TYPES = ['canvas', 'svg', 'root', 'vue'];
 // Author-selectable playback modes (`control=<mode>`): pausable (default — play button, then tap-to-pause + reset),
@@ -216,6 +230,7 @@ export function buildVueSrcdoc({ w, h, bg }, code, { externals = [], components 
     .join('');
 
   const script =
+    VIS_GATE +
     `const root=document.querySelector('#root');` +
     `const report=()=>parent.postMessage({__sandboxHeight:document.documentElement.scrollHeight},'*');` +
     `new ResizeObserver(report).observe(document.documentElement);` +
@@ -391,6 +406,7 @@ export function buildSrcdoc({ preset, w, h, bg, hover, control }, code, prelude 
         // the body. An auto (pausable) figure draws frame 0 in start(), then __resumeFig kicks the held loop into motion.
         : pauseControls + `start();` + (pausable ? `__resumeFig();` : ``);
   const script =
+    VIS_GATE +
     setup +
     resetVars +
     loopDef +

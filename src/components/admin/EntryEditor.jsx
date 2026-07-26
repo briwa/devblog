@@ -14,7 +14,7 @@ import { parseTags, serializeTags, tagHref } from "../../lib/tags.js";
 import { uploadFilename } from "../../lib/publish.js";
 import { loadDraft, saveDraft, clearDraft } from "../../lib/editorDraft.js";
 import { sandboxPreview } from "../../lib/sandboxPreview.js";
-import { pushFigureTheme, watchFigureTheme } from "../../lib/sandboxTheme.js";
+import { pushFigureTheme, watchFigureTheme, watchFigureVisibility } from "../../lib/sandboxTheme.js";
 import SandboxModal from "./SandboxModal.jsx";
 import EditorFind from "./EditorFind.jsx";
 import SandboxExternalModal from "./SandboxExternalModal.jsx";
@@ -378,12 +378,14 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
     document.addEventListener("keydown", onKey);
 
     const frames = () => previewRef.current?.querySelectorAll(".sandbox-frame") ?? [];
+    const vis = watchFigureVisibility(frames);
     const onMessage = (e) => {
       const h = e.data && e.data.__sandboxHeight;
       if (typeof h !== "number") return;
       for (const f of frames()) {
         if (f.contentWindow === e.source) {
           pushFigureTheme(f.contentWindow);
+          vis.sync();
           if (h > 0) {
             f.style.height = h + "px";
             f.closest(".sandbox")?.style.setProperty("--sandbox-h", h + "px");
@@ -410,6 +412,7 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
       document.removeEventListener("keydown", onKey);
       window.removeEventListener("message", onMessage);
       stopTheme();
+      vis.stop();
       document.removeEventListener("click", onToggle);
     };
   }, [previewOpen, previewHtml]);
