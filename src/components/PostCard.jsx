@@ -31,8 +31,7 @@ function CoverFrame({ cover }) {
 
 export const play = (el, on) => el.querySelector("iframe")?.contentWindow?.postMessage({ __figplay: on }, "*");
 
-// Require 2s of sustained hover before playing; a leave cancels the pending timer and pauses.
-export const hoverPlay = (el) => (el.__playT = setTimeout(() => play(el, true), 2000));
+export const hoverPlay = (el) => (el.__playT = setTimeout(() => play(el, true), 500));
 export const hoverStop = (el) => (clearTimeout(el.__playT), play(el, false));
 
 // The little grid preview shared by the recent list and the timeline grid pages.
