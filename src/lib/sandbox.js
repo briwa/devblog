@@ -304,7 +304,7 @@ export function buildSrcdoc({ preset, w, h, bg, hover, control }, code, prelude 
   // On the host's theme push: follow the colour (unless bg is explicit) AND re-report height. The push is
   // the host's "my listener is attached" signal, so it doubles as a reliable late size report — the frame's
   // own initial report can fire during page parse, before the host's (deferred module) listener exists.
-  const themeSync = `addEventListener('message',function(e){if(e.data&&e.data.__sbxBg){${bg ? '' : `document.documentElement.style.setProperty('--sbx-bg',e.data.__sbxBg);`}report()}});`;
+  const themeSync = `let __bgSeen;addEventListener('message',function(e){if(e.data&&e.data.__sbxBg&&e.data.__sbxBg!==__bgSeen){__bgSeen=e.data.__sbxBg;${bg ? '' : `document.documentElement.style.setProperty('--sbx-bg',e.data.__sbxBg);`}report()}});`;
 
   // Size #root to WxH so a mounted library has real dimensions; relative anchors its children, max-width avoids overflow.
   const rootCss = isRoot
