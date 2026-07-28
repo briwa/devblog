@@ -809,6 +809,7 @@ a.hashtag:hover { color: var(--accent); }
 }
 .sbx-btn:hover { border-color: var(--ink); }
 .sbx-btn.save { color: var(--accent); border-color: var(--accent); }
+.sbx-btn.sbx-icon { padding: 0.4rem; }
 .sbx-body { flex: 1; display: flex; min-height: 0; }
 /* Wraps the editor host so the floating save button can anchor to the code pane. */
 .sbx-code-pane {
@@ -843,7 +844,7 @@ a.hashtag:hover { color: var(--accent); }
 }
 .sbx-code .cm-editor { height: 100%; }
 
-/* Appears at the code pane's top-right once there are unsaved edits; ⌘S / click applies them. */
+/* Appears at the code pane's top-right once there are unsaved edits; ⌘S / click saves them. */
 .sbx-save-fab {
   position: absolute;
   top: 0.5rem;
@@ -880,7 +881,7 @@ a.hashtag:hover { color: var(--accent); }
 }
 .entry > .editor-find { position: fixed; top: 4.75rem; right: 1.25rem; }
 .sbx-code-pane .editor-find { position: absolute; top: 0.5rem; right: 0.5rem; }
-/* Drop the "apply edits" fab below the find bar while it's open so they don't stack. */
+/* Drop the save fab below the find bar while it's open so they don't stack. */
 .sbx-code-pane .editor-find ~ .sbx-save-fab { top: 3rem; }
 .editor-find-input {
   width: 11rem;

@@ -312,16 +312,23 @@ export default function EntryEditor({ markdown: md = "", title: initialTitle = "
     }
   };
 
-  function saveSandbox(fence) {
+  // keepOpen lets the modal's disk button commit to the doc without closing; the fence's new range
+  // is tracked back into sandboxEdit so the next save replaces it in place.
+  function saveSandbox(fence, { keepOpen = false } = {}) {
     const view = cmRef.current;
-    setSandboxEdit(null);
-    if (!view || !sandboxEdit) return;
+    if (!view || !sandboxEdit) { setSandboxEdit(null); return; }
     const { from, to } = sandboxEdit;
-    const isNewBlock = from === to; // a fresh insert has no range to replace
     let insert = fence;
-    if (isNewBlock && from > 0 && view.state.doc.sliceString(from - 1, from) !== "\n") insert = "\n" + insert;
+    // Keep a blank line before the fence so it never glues onto the previous line — checked every
+    // save (not just fresh inserts) since a keepOpen re-save replaces a range that owns that newline.
+    if (from > 0 && view.state.doc.sliceString(from - 1, from) !== "\n") insert = "\n" + insert;
     view.dispatch({ changes: { from, to, insert }, selection: { anchor: from + insert.length } });
-    view.focus();
+    if (keepOpen) {
+      setSandboxEdit((s) => (s ? { ...s, to: from + insert.length } : s));
+    } else {
+      setSandboxEdit(null);
+      view.focus();
+    }
   }
 
   async function onFile(e) {

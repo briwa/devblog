@@ -73,7 +73,7 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
   const hostRef = useRef(null);
   const cmRef = useRef(null);
   const frameRef = useRef(null);
-  const updateRef = useRef(null); // latest updatePreview, so the ⌘S handler (bound once) never goes stale
+  const saveRef = useRef(null); // latest save, so the ⌘S handler (bound once) never goes stale
   const metaInitRef = useRef(false); // skip the mount pass when flagging meta edits dirty
   const draftInitRef = useRef(false); // skip the mount pass when persisting meta edits
   const clearedRef = useRef(false); // stops a pending flush from resurrecting a saved/discarded draft
@@ -98,7 +98,6 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
     setFrameKey((k) => k + 1); // force the iframe to remount with the new srcdoc
     setDirty(false); // edits applied — hide the save button
   }
-  updateRef.current = updatePreview; // refreshed every render so ⌘S applies the current code + meta
 
   // Persist the full working state (code + settings) so an accidental reload/close doesn't lose it.
   const persist = () => {
@@ -172,17 +171,25 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
     if (cmRef.current) cmRef.current.dispatch({ effects: langCompartment.reconfigure(langSupport(codeLang)) });
   }, [codeLang]);
 
-  // Meta edits (size, bg, type, group) also need re-applying — flag them dirty too, but not on mount.
+  // Meta edits (figure size/bg/type/group, source lang/label/group) also need saving — flag them
+  // dirty too, but not on mount.
   useEffect(() => {
     if (!metaInitRef.current) { metaInitRef.current = true; return; }
-    if (isFigure) setDirty(true);
-  }, [type, w, h, bg, groupId]);
+    setDirty(true);
+  }, [type, w, h, bg, groupId, srcLang, name]);
 
   // Persist any settings change too (code changes are caught in the editor's update listener).
   useEffect(() => {
     if (!draftInitRef.current) { draftInitRef.current = true; return; }
     scheduleSaveRef.current();
   }, [type, w, h, bg, showCode, control, preview, srcLang, name, groupId]);
+
+  // Lock the page behind the fullscreen modal so wheel/touch scrolls don't drift the entry underneath.
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
 
   // Flush synchronously on unload — the debounce timer won't survive a reload.
   useEffect(() => {
@@ -209,11 +216,12 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
 
   useEffect(() => {
     const onKey = (e) => {
-      // Esc never dismisses the code-fence editor — too easy to lose a draft; Cancel/overlay close it.
-      // ⌘/Ctrl+S applies the current edits to the preview (never the browser's save dialog).
+      // Esc never dismisses the code-fence editor — too easy to lose a draft; the x button closes it.
+      // ⌘/Ctrl+S saves (never the browser's save dialog): a figure re-runs its preview and stays open,
+      // a source fence saves and closes.
       if ((e.metaKey || e.ctrlKey) && (e.key === "s" || e.key === "S")) {
         e.preventDefault();
-        updateRef.current?.();
+        saveRef.current?.();
       }
     };
     document.addEventListener("keydown", onKey, true);
@@ -254,17 +262,29 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
     window.addEventListener("pointerup", up);
   }
 
+  // Save (disk / ⌘S): a figure commits to the doc but stays open and re-runs its preview so you can
+  // keep iterating (only x closes it); a source fence has no preview to iterate on, so it just closes.
   function save() {
-    finishDraft();
     const body = cmRef.current ? cmRef.current.state.doc.toString() : seed.code || "";
     if (isFigure) {
       const state = { type, w: Number(w) || undefined, h: Number(h) || undefined, bg, showCode, control, preview, id: groupId };
-      onSave(buildSandboxFence(state, body));
-    } else if (srcLang === "vue") {
-      onSave(buildLibFence({ kind: "vue", name, id: groupId }, body));
+      onSave(buildSandboxFence(state, body), { keepOpen: true });
+      updatePreview(); // rebuild the preview from the just-saved code (also clears dirty)
     } else {
-      onSave(buildLibFence({ kind: "source", label: name, id: groupId }, body));
+      finishDraft();
+      const fence = srcLang === "vue"
+        ? buildLibFence({ kind: "vue", name, id: groupId }, body)
+        : buildLibFence({ kind: "source", label: name, id: groupId }, body);
+      onSave(fence); // no keepOpen → the modal closes
     }
+  }
+  saveRef.current = save; // refreshed every render so ⌘S saves the current code + meta
+
+  // Close (x): warn before dropping edits made since the last save; a saved fence closes at once.
+  function requestClose() {
+    if (dirty && !window.confirm("You have unsaved changes. Close and discard them?")) return;
+    finishDraft();
+    onCancel();
   }
 
   const isVue = type === "vue";
@@ -336,11 +356,13 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
           )}
         </div>
         <div className="sbx-actions">
-          <button className="sbx-btn save" onClick={save} title="Save">
-            <Icon name="check" size={17} /> Save
-          </button>
-          <button className="sbx-btn" onClick={() => { finishDraft(); onCancel(); }} title="Cancel">
-            <Icon name="close" size={17} /> Cancel
+          {!isFigure && dirty && (
+            <button className="sbx-btn sbx-icon save" onClick={save} title="Save (⌘S)" aria-label="Save">
+              <Icon name="save" size={17} />
+            </button>
+          )}
+          <button className="sbx-btn sbx-icon" onClick={requestClose} title="Close" aria-label="Close">
+            <Icon name="close" size={17} />
           </button>
         </div>
       </div>
@@ -355,9 +377,9 @@ export default function SandboxModal({ kind = "figure", initial, siblings = [], 
           {isFigure && dirty && (
             <button
               className="sbx-save-fab"
-              onClick={updatePreview}
-              title="Apply edits to the preview (⌘S)"
-              aria-label="Apply edits to the preview"
+              onClick={save}
+              title="Save (⌘S)"
+              aria-label="Save"
             >
               <Icon name="save" size={16} />
             </button>
