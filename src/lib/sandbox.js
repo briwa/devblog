@@ -368,7 +368,12 @@ export function buildSrcdoc({ preset, w, h, bg, hover, control }, code, prelude 
     ? `const onCleanup=(fn)=>{__cleanups.push(fn)};` +
       `const __teardown=()=>{if(__stop){__stop();__stop=null}__cleanups.forEach(function(fn){try{fn()}catch(_){}});__cleanups=[];${isCanvas ? 'canvas.width=width' : "root.innerHTML=''"}};` +
       `const reset=()=>{__teardown();${resetHome};parent.postMessage({__sandboxReset:1},'*')};`
-    : `const onCleanup=()=>{};const reset=()=>{};`;
+    : hover
+      // hover covers aren't resettable, but a figure that calls reset() at the end of its timeline must rewind to a
+      // PAUSED frame 0 (not loop): stop the rAF, rebuild fresh state via run() (which draws frame 0 but holds), and sit
+      // there. The next hover replays from t=0. This is also the mouse-leave behaviour — a cover rests on its first frame.
+      ? `const onCleanup=()=>{};const reset=()=>{if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}__el=0;__t0=null;__now=0;__fn=null;run()};`
+      : `const onCleanup=()=>{};const reset=()=>{};`;
 
   // Pausable canvas: tap the surface to toggle pause; when paused the overlay shows a resume + reset button.
   // __ctlContrast keeps the overlay legible against the figure's background (mirrors the play button's contrast).
@@ -399,9 +404,11 @@ export function buildSrcdoc({ preset, w, h, bg, hover, control }, code, prelude 
       // __figreset (canvas/root only) is the toolbar's Reset: soft rewind to a paused frame 0, no remount.
       ? `start();addEventListener('message',function(e){if(!e.data)return;if(e.data.__figpause){if(__raf!=null){cancelAnimationFrame(__raf);__raf=null;__el=__now}}else if(e.data.__figplay){if(__raf==null&&__fn){__t0=null;__raf=requestAnimationFrame(__tick)}}${resettable ? `else if(e.data.__figreset){reset()}` : ''}});`
       : hover
-        // Draw frame 0, then play on {__figplay:true} / stop on {__figplay:false}, rewinding to frame 0 on leave so the
-        // next hover restarts fresh. Only react to __figplay messages — a theme (__sbxBg) push must not pause a hovered figure.
-        ? `start();addEventListener('message',function(e){if(!__fn||!e.data)return;if(e.data.__figplay){if(__raf==null){__t0=null;__raf=requestAnimationFrame(__tick)}}else if('__figplay' in e.data){if(__raf!=null){cancelAnimationFrame(__raf);__raf=null}__el=0;__t0=null;__now=0;__fn(0)}});`
+        // Draw frame 0, then play on {__figplay:true} / rewind to a paused frame 0 on leave via reset() — a fresh rebuild,
+        // since replaying __fn(0) would redraw with the author state the loop already mutated, not the initial state. reset()
+        // is also what a figure calls when its timeline ends, so it holds instead of looping. Only react to __figplay
+        // messages — a theme (__sbxBg) push must not pause a hovered figure.
+        ? `start();addEventListener('message',function(e){if(!__fn||!e.data)return;if(e.data.__figplay){if(__raf==null){__t0=null;__raf=requestAnimationFrame(__tick)}}else if('__figplay' in e.data){reset()}});`
         // Auto/none canvas: wire the controls before start() so its elements are captured even if run() throws and wipes
         // the body. An auto (pausable) figure draws frame 0 in start(), then __resumeFig kicks the held loop into motion.
         : pauseControls + `start();` + (pausable ? `__resumeFig();` : ``);
